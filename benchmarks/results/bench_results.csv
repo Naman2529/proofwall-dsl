@@ -1,0 +1,23 @@
+attrs_per_request,rules,candidate,z3_seconds,z3_verdict,enum_seconds,enum_verdict,agree
+4,33,equivalent rewrite,0.027,PROVEN,0.0012,PROVEN,yes
+4,33,weakened,0.0051,REJECTED,0.0007,REJECTED,yes
+8,33,equivalent rewrite,0.0249,PROVEN,0.0294,PROVEN,yes
+8,33,weakened,0.0079,REJECTED,0.0187,REJECTED,yes
+10,33,equivalent rewrite,0.036,PROVEN,0.0653,PROVEN,yes
+10,33,weakened,0.0059,REJECTED,0.0334,REJECTED,yes
+12,33,equivalent rewrite,0.0227,PROVEN,0.2701,PROVEN,yes
+12,33,weakened,0.0054,REJECTED,0.2192,REJECTED,yes
+14,33,equivalent rewrite,0.0221,PROVEN,1.2099,PROVEN,yes
+14,33,weakened,0.0055,REJECTED,0.5968,REJECTED,yes
+16,33,equivalent rewrite,0.0262,PROVEN,6.2007,PROVEN,yes
+16,33,weakened,0.013,REJECTED,3.9892,REJECTED,yes
+18,33,equivalent rewrite,0.0451,PROVEN,,CAP EXCEEDED,n/a (enum capped)
+18,33,weakened,0.009,REJECTED,,CAP EXCEEDED,n/a (enum capped)
+20,33,equivalent rewrite,0.0437,PROVEN,,CAP EXCEEDED,n/a (enum capped)
+20,33,weakened,0.0094,REJECTED,,CAP EXCEEDED,n/a (enum capped)
+24,33,equivalent rewrite,0.0427,PROVEN,,CAP EXCEEDED,n/a (enum capped)
+24,33,weakened,0.0075,REJECTED,,CAP EXCEEDED,n/a (enum capped)
+32,33,equivalent rewrite,0.0428,PROVEN,,CAP EXCEEDED,n/a (enum capped)
+32,33,weakened,0.0116,REJECTED,,CAP EXCEEDED,n/a (enum capped)
+48,33,equivalent rewrite,0.0447,PROVEN,,CAP EXCEEDED,n/a (enum capped)
+48,33,weakened,0.0103,REJECTED,,CAP EXCEEDED,n/a (enum capped)

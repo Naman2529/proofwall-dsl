@@ -1,0 +1,15 @@
+# A policy with rules that cannot change any decision.
+# python -m policyc compile examples/optimizable.pol --emit ir --optimize
+
+SUBJECT admin, analyst, guest
+
+RESOURCE database SUPPORTS READ, WRITE
+RESOURCE reports  SUPPORTS READ, WRITE
+
+ALLOW admin ACCESS database
+ALLOW admin READ database WHEN mfa             # covered by the ACCESS rule above
+ALLOW analyst READ reports WHEN authenticated
+ALLOW analyst READ reports WHEN authenticated  # exact duplicate
+DENY guest ACCESS database
+ALLOW guest READ database                      # the DENY above always wins
+ALLOW admin READ reports

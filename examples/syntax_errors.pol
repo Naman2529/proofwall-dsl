@@ -1,0 +1,10 @@
+# Five syntax errors, all reported in one run thanks to panic-mode recovery.
+
+SUBJECT admin, guest
+RESOURCE database SUPPORTS READ, WRITE
+
+ALLOW admin FLY database                              # FLY is not an action
+DENY guest WRITE                                      # resource name missing
+ALLOW admin READ database WHEN (authenticated AND mfa # missing ')'
+ALLOW guest READ database;                            # ';' is not part of the language
+allow guest READ database                             # keywords are uppercase
