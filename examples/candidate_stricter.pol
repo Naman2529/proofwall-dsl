@@ -1,0 +1,14 @@
+# Removes "ALLOW admin READ reports". Admins lose access they had, so this is
+# NOT equivalent to optimizable.pol, but it never allows anything new.
+# Passes "non-weakening" mode, fails "equivalent" mode.
+# python -m policyc.verification verify examples/optimizable.pol examples/candidate_stricter.pol
+# python -m policyc.verification verify examples/optimizable.pol examples/candidate_stricter.pol --mode equivalent
+
+SUBJECT admin, analyst, guest
+
+RESOURCE database SUPPORTS READ, WRITE
+RESOURCE reports  SUPPORTS READ, WRITE
+
+ALLOW admin ACCESS database
+ALLOW analyst READ reports WHEN authenticated
+DENY guest ACCESS database

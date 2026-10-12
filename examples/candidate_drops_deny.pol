@@ -1,0 +1,14 @@
+# Looks like dead-rule cleanup of optimizable.pol, but it deletes the
+# "DENY guest ACCESS database" guard. Now the "ALLOW guest READ database"
+# rule is live, so guests can read the database. Strictly weaker.
+# python -m policyc.verification verify examples/optimizable.pol examples/candidate_drops_deny.pol
+
+SUBJECT admin, analyst, guest
+
+RESOURCE database SUPPORTS READ, WRITE
+RESOURCE reports  SUPPORTS READ, WRITE
+
+ALLOW admin ACCESS database
+ALLOW analyst READ reports WHEN authenticated
+ALLOW guest READ database
+ALLOW admin READ reports
