@@ -1,0 +1,9 @@
+# Duplicates, including a reordered condition.
+SUBJECT admin, analyst
+RESOURCE reports SUPPORTS READ, WRITE
+
+ALLOW admin ACCESS reports
+ALLOW analyst READ reports WHEN authenticated AND on_vpn
+ALLOW analyst READ reports WHEN on_vpn AND authenticated     # expect: W101
+ALLOW admin ACCESS reports                                    # expect: W101
+ALLOW analyst WRITE reports WHEN owner

@@ -1,0 +1,7 @@
+# Declarations nothing uses.
+SUBJECT admin, auditor, contractor       # expect: W106
+RESOURCE database SUPPORTS READ, WRITE
+RESOURCE backups SUPPORTS READ           # expect: W106
+
+ALLOW admin ACCESS database
+ALLOW auditor READ database

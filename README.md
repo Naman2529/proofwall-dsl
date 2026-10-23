@@ -1,10 +1,10 @@
-# policyc: AI-Assisted Cybersecurity Policy DSL Compiler (Review 2 build)
+# policyc: AI-Assisted Cybersecurity Policy DSL Compiler
 
 BCSE307P Compiler Design Lab. Team: Naman Bhatia (24BDS0056), George Christian Mathew (24BCE2753), Yohan George (24BAI0356).
 
-This is the trusted half of the compiler: every stage that decides whether a policy is accepted. The two AI stages (LLM generator and LLM optimizer) plug into interfaces that already exist here, so the remaining work is mostly wiring an LLM into them.
+A compiler for a small access-control policy language, with two AI stages inside it: an LLM that turns English requirements into policies, and an LLM that proposes smaller policies. The LLM proposes, the compiler decides: every model output must compile, and every rewrite must be proven by the verifier, before it is accepted.
 
-Pure Python 3.8+, no external libraries.
+Pure Python 3.8+. The compiler and the AI stages use only the standard library. Optional: `pip install -r requirements.txt` for the Z3 verifier, `matplotlib` for evaluation charts, and a `GEMINI_API_KEY` for the real model (everything also runs with `--llm fake`).
 
 ---
 
@@ -17,7 +17,12 @@ python -m policyc compile examples/semantic_issues.pol           # semantic erro
 python -m policyc compile examples/optimizable.pol --emit ir --optimize
 python -m policyc verify examples/optimizable.pol examples/candidate_good.pol   # accepted
 python -m policyc verify examples/optimizable.pol examples/candidate_bad.pol    # rejected
-python -m unittest discover -s tests -v                          # 40 tests
+python -m policyc.verification verify examples/optimizable.pol examples/candidate_bad.pol   # Z3 verifier, see docs/VERIFICATION.md
+python -m policyc gui                                           # the demo GUI in your browser (localhost only)
+python -m policyc generate --task g16 --llm fake                # English -> DSL (drop --llm fake with a key)
+python -m policyc optimize evaluation/optimization/o4_or_merge.pol --llm fake
+python -m policyc evaluate --llm fake                            # every Review 1 metric, see docs/EVALUATION.md
+python -m unittest discover -s tests -v                          # 222 tests (190 without z3)
 ```
 
 Other flags: `--emit tokens|ast|ir|json|all`, `-o out.json` to save the target policy, `--json-diagnostics` to print errors as JSON.
@@ -30,12 +35,12 @@ Other flags: `--emit tokens|ast|ir|json|all`, `-o out.json` to save the target p
 |---|---|
 | 1. DSL + formal grammar | Done. Grammar is LL(1) with no ambiguous productions. |
 | 2. Lexer + recursive-descent parser + AST, with line numbers and expected tokens | Done, plus panic-mode error recovery. |
-| 3. Security semantic analysis (duplicates, conflicts, undefined names, invalid action/resource pairs) | Done, plus redundancy, shadowing and unused-declaration checks. |
-| 4. LLM English to DSL with correction loop | Not started. The structured diagnostics it needs are done (`--json-diagnostics`). |
-| 5. IR + AI-suggested, compiler-verified optimization | IR, verifier and a compiler-only optimizer are done. The LLM that proposes rewrites is not started. |
-| 6. Target format + evaluation vs baseline | JSON code generator done. The compiler-only baseline exists. Evaluation not started. |
+| 3. Security semantic analysis (duplicates, conflicts, undefined names, invalid action/resource pairs) | Done, plus redundancy, shadowing and unused-declaration checks. Measured on 10 seeded policies (`evaluate --suite semantic`). |
+| 4. LLM English to DSL with correction loop | Done (`policyc/ai/generator.py`, `generate`). Gemini client, compiler errors fed back as JSON, measured on 20 tasks against reference policies. |
+| 5. IR + AI-suggested, compiler-verified optimization | Done (`policyc/ai/llm_optimizer.py`, `optimize`). Proposals must compile, keep declarations, be proven by the verifier and be smaller; counterexamples go back to the model. |
+| 6. Target format + evaluation vs baseline | Done (`evaluate`). Validity, rule reduction, tokens and latency vs the compiler-only baseline, plus the five-tier classification of every AI output. Real numbers need one run with a `GEMINI_API_KEY`. |
 
-So the review requirement of 25% is comfortably passed. Of the seven components in our "division of responsibility" table, the five trusted ones are working.
+All seven components of the Review 1 "division of responsibility" table are implemented: the two untrusted LLM stages and the five trusted compiler stages that judge them.
 
 ---
 
@@ -169,7 +174,7 @@ This is the core idea of the project, already working without the AI.
 
 **The optimizer** (compiler-only baseline) removes rules that cannot change any decision: exact duplicates, ALLOWs that an unconditional DENY always beats, and conditional rules that an unconditional rule of the same effect already covers. It never removes explicit DENY rules, on purpose, because they protect you if someone adds a broader ALLOW later.
 
-**The verifier** answers: do these two IRs make the same decision for every possible request? The DSL is small, so the set of possible requests is finite: every subject, every resource, every action it supports, and every true/false combination of the attributes used in that request's rules. The verifier checks all of them. If any decision differs, it rejects and prints a concrete counterexample.
+**The verifier** answers: do these two IRs make the same decision for every possible request? `verifier.verify()` hands the question to `policyc/verification/` (see `docs/VERIFICATION.md`): a cheap randomized differential test first, then a Z3 proof per (subject, action, resource), or exact enumeration of every true/false combination of the attributes if `z3-solver` is not installed. If any decision differs, it rejects and prints a concrete counterexample. Anything short of a full proof (timeout, enumeration cap) is also a rejection. `--mode non-weakening` relaxes "same decisions" to "never allows more".
 
 The key design point: **the optimizer's output is not trusted.** `compile()` runs the verifier on (original, optimized) and only keeps the optimized version if it is proven equivalent. This is called translation validation (Necula, PLDI 2000, paper 12 in our survey). Later, the LLM optimizer's suggestions go through the exact same gate. The LLM proposes, the verifier decides.
 
@@ -177,15 +182,18 @@ Demo:
 
 ```bash
 python -m policyc compile examples/optimizable.pol --emit ir --optimize
-# 9 IR rules -> 6, "VERIFIED: same decision in all 14 cases checked"
+# 9 IR rules -> 6, "PROVEN (equivalent, z3 (after differential)): 6 requests, ..."
 
 python -m policyc verify examples/optimizable.pol examples/candidate_bad.pol
-# REJECTED: analyst READ reports (authenticated=False): original says DENY, candidate says ALLOW
+# REJECTED (equivalent, differential): analyst READ reports (authenticated=False): original says DENY, candidate says ALLOW
+
+python -m policyc verify examples/optimizable.pol examples/candidate_stricter.pol --mode non-weakening
+# PROVEN: stricter is allowed in this mode, rejected in the default one
 ```
 
 `candidate_bad.pol` is the story to tell: it looks like a harmless cleanup, but it dropped `WHEN authenticated`, which quietly lets unauthenticated analysts read reports. This is exactly the kind of subtle, unsafe change an LLM could make, and the verifier catches it with a specific example.
 
-Why 14 cases? 3 subjects x 4 (resource, action) pairs = 12 requests. Two of them have one attribute each (mfa, authenticated), so those two are checked twice (true and false). 10 + 4 = 14.
+Why 6 requests? Only (subject, action, resource) triples that some rule mentions can differ; every other request is DENY in both policies by default. Requests whose rule sets are identical in both policies are skipped too, since they provably decide the same.
 
 ### Phase 6: Code generation (`codegen.py`)
 
@@ -211,17 +219,25 @@ Every error and warning is an object with a code, phase, message, line, column, 
 | W103 | semantic | ALLOW/DENY conflict |
 | W104 | semantic | ALLOW that can never take effect |
 | W106 | semantic | declared but never used |
+| W107 | semantic | pair of rules too large (over 16 attributes) to check for W102/W103 |
 
 ---
 
-## 5. Suggested demo order (about 5 minutes)
+## 5. Suggested demo order (about 6 minutes, in the GUI)
 
-1. `--emit all` on `valid.pol`. Scroll through tokens, AST, IR, JSON. "This is one policy going through every phase."
-2. `syntax_errors.pol`. Point at FLY, the missing resource, the missing `)`, the `;`, and the lowercase `allow` hint. "Five errors, one run, because of panic-mode recovery."
-3. `semantic_issues.pol`. "All of these lines parse. Semantic analysis catches the typo, the impossible action, the duplicate, the dead ALLOW, the conflict."
-4. `optimizable.pol --emit ir --optimize`. "9 rules down to 6, and the compiler proves it did not change any decision."
-5. `verify ... candidate_bad.pol`. "This is what will happen to a bad LLM suggestion. Rejected, with the exact request that would have been wrongly allowed."
-6. Run the tests: 40 passing.
+Before the demo: `pip install -r requirements.txt matplotlib`, set `GEMINI_API_KEY`, run `python -m policyc evaluate` once (for the Results tab), then `python -m policyc gui`. The header toggle switches between Gemini and the offline Fake model.
+
+1. **Compile** `examples/valid.pol`. Click through Lexer, Parser, Semantic, IR, Optimizer, Verifier, Codegen. "One policy through every phase."
+2. **Compile** `examples/syntax_errors.pol`. Five errors in one run (panic-mode recovery); click one to jump to its line.
+3. **Compile** `examples/semantic_issues.pol`. Everything parses; semantic analysis catches the typo, the impossible action, the duplicate, the dead ALLOW, the conflict.
+4. **Compile** `examples/optimizable.pol`, Verifier step. "9 rules down to 6, and the compiler proves no decision changed."
+5. **Generate** task g16 with Gemini: the policy, proven equivalent to the hand-written reference, in about a second. Then switch to **Fake** and generate g01 to show the correction loop: a broken first answer, the compiler's errors fed back, the fix.
+6. **Optimize** `o4_or_merge.pol` with Gemini: compiler-only 5 -> 5 rules, LLM 5 -> 3, proven equivalent, with the diff.
+7. **Verify**, preset "Dropped a condition": REJECTED, with the exact request that would have been wrongly allowed. "This is what happens to an unsafe AI suggestion."
+8. **Results**: the Review 1 numbers and charts from the real run.
+9. Run the tests: 222 passing.
+
+The same steps work from the command line (`compile`, `verify`, `generate`, `optimize`, `evaluate`).
 
 ---
 
@@ -237,26 +253,28 @@ No. Every statement starts with a unique keyword, and the condition grammar enco
 Under deny-overrides a conflicting policy still has one clear meaning: DENY wins. Real policies often use a broad ALLOW plus a narrow DENY on purpose. We flag it so a human can check, but we do not block it. Undefined names and impossible actions are errors because the policy is meaningless with them.
 
 **How do you know the verifier is correct?**
-It does not approximate. The space of requests is finite, and it checks every single one using the same `decide()` function that defines the policy's meaning. If it says equivalent, there is no request where they differ. If it says not equivalent, it shows you one. The only limit is size, which is why it only enumerates attributes that actually appear in the rules for each request (capped at 16 per request).
+It does not approximate. The space of requests is finite, and Z3 encodes deny-overrides exactly for each one; every counterexample Z3 finds is replayed through plain Python before it is reported. Z3 and exact enumeration are cross-checked against an independent brute force on 400 random policy pairs, and `tests/test_integration.py` checks the verifier reads the compiler's IR the same way as the source. If it says proven, there is no request where they differ. If not, it shows you one, or says why it could not finish (and rejects).
 
 **Does it scale?**
-Cost grows with (subjects x resource-actions x 2^attributes-per-request). For the policy sizes in this project that is tiny (14 cases above, milliseconds). For very large policies the next step would be an SMT solver, like Zelkova and Cedar do (papers 16 and 18).
+Enumeration costs 2^attributes per request: 1 ms at 4 attributes, 6.2 s at 16, then it refuses. Z3 stays around 25 to 45 ms up to 48 attributes (`benchmarks/bench_verifiers.py`), the same approach as Zelkova and Cedar (papers 16 and 18).
 
 **Why does the optimizer keep explicit DENY rules?**
 With default deny, a DENY with no overlapping ALLOW technically changes nothing. But it is a guard rail: if someone later adds `ALLOW guest ACCESS reports`, the DENY still blocks it. Removing it would be "correct" today and dangerous tomorrow.
 
 **Where does the AI go?**
-Two places, both already prepared for. (1) Generator: the LLM turns English into DSL, we compile it, and if it fails we send the JSON diagnostics back and ask it to fix it. (2) Optimizer: the LLM proposes a rewritten policy, and we run exactly the `verify` command shown above. In both cases the LLM never decides anything on its own.
+Two places. (1) Generator: the LLM turns English into DSL, we compile it, and if it fails we send the JSON diagnostics back and ask it to fix it. (2) Optimizer: the LLM proposes rewritten policies, and each one must compile, keep the declarations, be proven by the verifier and be smaller. In both cases the LLM never decides anything on its own.
+
+**How do you know a generated policy means what was asked?**
+Each benchmark requirement has a hand-written reference policy. The verifier checks whether the generated policy is equivalent to it, so "compiles" and "correct" are measured separately.
 
 ---
 
-## 7. What is left (for the final review)
+## 7. Limitations
 
-The hooks for all three items already exist in `policyc/ai/`. Start with `policyc/ai/README.md`, which says what each file does today and what still needs doing.
-
-- LLM generator: English to DSL, with the compile, feedback, retry loop. Metrics: first-try parse rate, rate after correction, average retries.
-- LLM optimizer: send the IR, get a candidate policy back, verify it. Metrics: accepted vs rejected suggestions, rule reduction.
-- Evaluation script comparing the AI pipeline against the compiler-only optimizer that already exists here (validity, rule reduction, tokens, latency).
+- The real evaluation numbers need a Gemini API key; until then `--llm fake` produces rehearsal output marked `FAKE - not real results`.
+- The verifier proves the IR, not the JSON codegen, and treats attributes as independent booleans (see `docs/VERIFICATION.md`).
+- Semantic checks are pairwise: an ALLOW beaten only by two DENYs together, or a rule covered only by two others together, is not flagged. The evaluation keeps both as documented known misses.
+- Free-tier quotas are small; the evaluation resumes where it stopped (`docs/EVALUATION.md`).
 
 ---
 
@@ -270,15 +288,22 @@ policyc/
   semantic.py logic.py                           compiler: phase 3
   ir.py optimizer.py codegen.py                  compiler: phases 4, 5a, 6
   compiler.py __main__.py diagnostics.py         compiler: driver, CLI, errors
-  verifier.py                                    security verification (working baseline, see note at top of file)
-  ai/                                            AI part (hooks and loops ready, no model connected yet)
-    README.md          start here
-    llm_client.py      the one place a model gets called (stub)
+  verifier.py                                    verify(): the entry point compiler, CLI and AI call
+  verification/                                  security verification: Z3 non-weakening prover (docs/VERIFICATION.md)
+  ai/                                            AI part (see policyc/ai/README.md)
+    llm_client.py      the one place a model gets called (Gemini REST, fake)
+    prompts.py         every prompt template, fingerprinted
     generator.py       English -> DSL correction loop
-    llm_optimizer.py   propose -> verify -> retry loop
-    evaluation.py      baseline numbers done, AI comparison not started
+    llm_optimizer.py   propose -> compile -> verify -> select loop
+    metrics.py         policy size, output tiers, declaration and DENY-guard checks
+    cli.py             generate / optimize / evaluate / gui commands
+  gui/                                           demo web app: server.py (JSON API, localhost only) + static/
+    evaluation/        benchmark loaders, resumable runner, reports, charts
 examples/              the .pol files used in the demo
-tests/                 40 unittest tests
+evaluation/            benchmark data (generation, optimization, semantic); results/ is git-ignored
+tests/                 222 unittest tests (test_verification.py is skipped without z3-solver)
+benchmarks/            Z3 vs enumeration timing
+docs/                  VERIFICATION.md, EVALUATION.md, superpowers/ (design spec and plan)
 ```
 
 Ground rules for anyone adding to this:
@@ -286,3 +311,5 @@ Ground rules for anyone adding to this:
 - Every model output goes through `compile_source()`, and every proposed rewrite also goes through `verify()`. Nothing skips those two.
 - If you change a diagnostic code or the shape of `Diagnostic.to_dict()`, update the table in section 4, because the LLM correction loop reads those fields.
 - If you change `verify()` or `VerificationResult`, keep the field names. The compiler, the CLI and `ai/llm_optimizer.py` all use them.
+- If you change a prompt in `policyc/ai/prompts.py`, its fingerprint changes and the evaluation starts fresh records for it; that is intended.
+- Never put an API key in a file. `GEMINI_API_KEY` is read from the environment only.

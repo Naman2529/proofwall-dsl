@@ -1,0 +1,15 @@
+# Cases at the edge of what pairwise truth-table checks can see.
+SUBJECT ops, analyst, trader
+RESOURCE cluster SUPPORTS READ, WRITE
+RESOURCE reports SUPPORTS READ, WRITE
+RESOURCE orders SUPPORTS READ, EXECUTE
+
+ALLOW ops READ cluster WHEN a0 AND a1 AND a2 AND a3 AND a4 AND a5 AND a6 AND a7 AND a8
+DENY ops READ cluster WHEN b0 AND b1 AND b2 AND b3 AND b4 AND b5 AND b6 AND b7 AND b8   # expect: W107
+DENY analyst READ reports
+DENY analyst WRITE reports
+ALLOW analyst ACCESS reports   # expect: W103, W104  # known miss W104: only beaten by two DENYs together
+ALLOW trader EXECUTE orders WHEN market_open
+ALLOW trader EXECUTE orders WHEN NOT market_open
+ALLOW trader EXECUTE orders WHEN mfa   # expect: W102  # known miss W102: covered only by the two rules above together
+ALLOW trader READ orders

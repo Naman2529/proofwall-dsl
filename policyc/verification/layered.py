@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import time
 
+from . import z3_backend
 from .differential import verify_differential
 from .enumerate_backend import verify_enumerate
 from .model import MalformedPolicy, normalize
@@ -56,8 +57,12 @@ def verify_candidate(original, candidate, mode: str = "non-weakening", backend: 
         quick.elapsed_s = time.perf_counter() - t0
         return quick
 
-    # Layer 3: the proof.
-    proof = verify_z3(original, candidate, mode, timeout_ms, find_all, cond_adapter)
-    proof.layer = "z3 (after differential)"
+    # Layer 3: the proof. Without Z3, exact enumeration (still fails closed past max_attrs).
+    if z3_backend.z3 is None:
+        proof = verify_enumerate(original, candidate, mode, max_attrs, find_all, cond_adapter)
+        proof.layer = "enumerate (after differential, z3 not installed)"
+    else:
+        proof = verify_z3(original, candidate, mode, timeout_ms, find_all, cond_adapter)
+        proof.layer = "z3 (after differential)"
     proof.elapsed_s = time.perf_counter() - t0
     return proof

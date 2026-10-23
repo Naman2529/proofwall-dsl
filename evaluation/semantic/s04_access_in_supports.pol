@@ -1,0 +1,7 @@
+# ACCESS is a wildcard, not an action a resource can list.
+SUBJECT admin
+RESOURCE vault SUPPORTS READ, ACCESS     # expect: S006
+RESOURCE logs SUPPORTS READ, WRITE
+
+ALLOW admin READ vault
+ALLOW admin ACCESS logs

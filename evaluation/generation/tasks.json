@@ -1,0 +1,411 @@
+[
+  {
+    "id": "g01",
+    "difficulty": "easy",
+    "english": "Administrators can read and write the customer database. Nobody else gets any access to it.",
+    "vocabulary": {
+      "subjects": [
+        "admin",
+        "guest"
+      ],
+      "resources": {
+        "customer_db": [
+          "READ",
+          "WRITE"
+        ]
+      },
+      "attributes": []
+    },
+    "reference": "g01.pol"
+  },
+  {
+    "id": "g02",
+    "difficulty": "easy",
+    "english": "Guests may read the public website content.",
+    "vocabulary": {
+      "subjects": [
+        "guest"
+      ],
+      "resources": {
+        "website": [
+          "READ",
+          "WRITE"
+        ]
+      },
+      "attributes": []
+    },
+    "reference": "g02.pol"
+  },
+  {
+    "id": "g03",
+    "difficulty": "easy",
+    "english": "Interns may look at the payroll system but must never write to it.",
+    "vocabulary": {
+      "subjects": [
+        "intern"
+      ],
+      "resources": {
+        "payroll": [
+          "READ",
+          "WRITE"
+        ]
+      },
+      "attributes": []
+    },
+    "reference": "g03.pol"
+  },
+  {
+    "id": "g04",
+    "difficulty": "easy",
+    "english": "The backup service is allowed to run the snapshot job.",
+    "vocabulary": {
+      "subjects": [
+        "backup_service"
+      ],
+      "resources": {
+        "snapshot_job": [
+          "EXECUTE"
+        ]
+      },
+      "attributes": []
+    },
+    "reference": "g04.pol"
+  },
+  {
+    "id": "g05",
+    "difficulty": "easy",
+    "english": "Auditors can read the audit log. Developers can both read and write the source repository.",
+    "vocabulary": {
+      "subjects": [
+        "auditor",
+        "developer"
+      ],
+      "resources": {
+        "audit_log": [
+          "READ",
+          "WRITE"
+        ],
+        "repo": [
+          "READ",
+          "WRITE"
+        ]
+      },
+      "attributes": []
+    },
+    "reference": "g05.pol"
+  },
+  {
+    "id": "g06",
+    "difficulty": "easy",
+    "english": "Support staff can read tickets and update them. They cannot trigger ticket automations.",
+    "vocabulary": {
+      "subjects": [
+        "support"
+      ],
+      "resources": {
+        "tickets": [
+          "READ",
+          "WRITE",
+          "EXECUTE"
+        ]
+      },
+      "attributes": []
+    },
+    "reference": "g06.pol"
+  },
+  {
+    "id": "g07",
+    "difficulty": "medium",
+    "english": "Analysts can read reports, but only once they are authenticated.",
+    "vocabulary": {
+      "subjects": [
+        "analyst"
+      ],
+      "resources": {
+        "reports": [
+          "READ",
+          "WRITE"
+        ]
+      },
+      "attributes": [
+        "authenticated"
+      ]
+    },
+    "reference": "g07.pol"
+  },
+  {
+    "id": "g08",
+    "difficulty": "medium",
+    "english": "Doctors can read and update patient records while they are on shift. Nurses can only read them, and also only while on shift.",
+    "vocabulary": {
+      "subjects": [
+        "doctor",
+        "nurse"
+      ],
+      "resources": {
+        "patient_records": [
+          "READ",
+          "WRITE"
+        ]
+      },
+      "attributes": [
+        "on_shift"
+      ]
+    },
+    "reference": "g08.pol"
+  },
+  {
+    "id": "g09",
+    "difficulty": "medium",
+    "english": "Employees can read the HR portal when they are in the office or connected over the VPN.",
+    "vocabulary": {
+      "subjects": [
+        "employee"
+      ],
+      "resources": {
+        "hr_portal": [
+          "READ",
+          "WRITE"
+        ]
+      },
+      "attributes": [
+        "in_office",
+        "on_vpn"
+      ]
+    },
+    "reference": "g09.pol"
+  },
+  {
+    "id": "g10",
+    "difficulty": "medium",
+    "english": "Developers can deploy to staging at any time, but deploying to production needs an approved change ticket.",
+    "vocabulary": {
+      "subjects": [
+        "developer"
+      ],
+      "resources": {
+        "staging": [
+          "EXECUTE"
+        ],
+        "production": [
+          "EXECUTE"
+        ]
+      },
+      "attributes": [
+        "change_approved"
+      ]
+    },
+    "reference": "g10.pol"
+  },
+  {
+    "id": "g11",
+    "difficulty": "medium",
+    "english": "Admins have full access to the billing service. Contractors may read billing data but must never change it.",
+    "vocabulary": {
+      "subjects": [
+        "admin",
+        "contractor"
+      ],
+      "resources": {
+        "billing": [
+          "READ",
+          "WRITE",
+          "EXECUTE"
+        ]
+      },
+      "attributes": []
+    },
+    "reference": "g11.pol"
+  },
+  {
+    "id": "g12",
+    "difficulty": "medium",
+    "english": "Students can read course material. A suspended student loses all access to it.",
+    "vocabulary": {
+      "subjects": [
+        "student"
+      ],
+      "resources": {
+        "course_material": [
+          "READ",
+          "WRITE"
+        ]
+      },
+      "attributes": [
+        "suspended"
+      ]
+    },
+    "reference": "g12.pol"
+  },
+  {
+    "id": "g13",
+    "difficulty": "medium",
+    "english": "Managers can approve (write) expenses, but never ones they requested themselves. Anyone on the finance team can read expenses.",
+    "vocabulary": {
+      "subjects": [
+        "manager",
+        "finance"
+      ],
+      "resources": {
+        "expenses": [
+          "READ",
+          "WRITE"
+        ]
+      },
+      "attributes": [
+        "is_requester"
+      ]
+    },
+    "reference": "g13.pol"
+  },
+  {
+    "id": "g14",
+    "difficulty": "medium",
+    "english": "The CI bot may run the build pipeline only for signed commits.",
+    "vocabulary": {
+      "subjects": [
+        "ci_bot"
+      ],
+      "resources": {
+        "build_pipeline": [
+          "EXECUTE"
+        ]
+      },
+      "attributes": [
+        "commit_signed"
+      ]
+    },
+    "reference": "g14.pol"
+  },
+  {
+    "id": "g15",
+    "difficulty": "hard",
+    "english": "Vendors may use the shipping API (read and execute) only over the partner network, and never during a maintenance window.",
+    "vocabulary": {
+      "subjects": [
+        "vendor"
+      ],
+      "resources": {
+        "shipping_api": [
+          "READ",
+          "EXECUTE"
+        ]
+      },
+      "attributes": [
+        "partner_network",
+        "maintenance_window"
+      ]
+    },
+    "reference": "g15.pol"
+  },
+  {
+    "id": "g16",
+    "difficulty": "hard",
+    "english": "Traders can execute orders while the market is open, provided they have either completed MFA or are using a trading-floor terminal.",
+    "vocabulary": {
+      "subjects": [
+        "trader"
+      ],
+      "resources": {
+        "order_system": [
+          "READ",
+          "EXECUTE"
+        ]
+      },
+      "attributes": [
+        "market_open",
+        "mfa",
+        "floor_terminal"
+      ]
+    },
+    "reference": "g16.pol"
+  },
+  {
+    "id": "g17",
+    "difficulty": "hard",
+    "english": "Engineers can read and write the config store. During a change freeze, however, writes are blocked unless the engineer is on call.",
+    "vocabulary": {
+      "subjects": [
+        "engineer"
+      ],
+      "resources": {
+        "config_store": [
+          "READ",
+          "WRITE"
+        ]
+      },
+      "attributes": [
+        "change_freeze",
+        "on_call"
+      ]
+    },
+    "reference": "g17.pol"
+  },
+  {
+    "id": "g18",
+    "difficulty": "hard",
+    "english": "Researchers may read the dataset once they have signed the data agreement. If the dataset is flagged as restricted, nobody may read it without ethics approval.",
+    "vocabulary": {
+      "subjects": [
+        "researcher"
+      ],
+      "resources": {
+        "dataset": [
+          "READ",
+          "WRITE"
+        ]
+      },
+      "attributes": [
+        "signed_agreement",
+        "restricted",
+        "ethics_approved"
+      ]
+    },
+    "reference": "g18.pol"
+  },
+  {
+    "id": "g19",
+    "difficulty": "hard",
+    "english": "Admins can do anything with the user directory. Help-desk staff can always read it, and can reset passwords (write) only during business hours from a managed device.",
+    "vocabulary": {
+      "subjects": [
+        "admin",
+        "helpdesk"
+      ],
+      "resources": {
+        "user_directory": [
+          "READ",
+          "WRITE",
+          "EXECUTE"
+        ]
+      },
+      "attributes": [
+        "business_hours",
+        "managed_device"
+      ]
+    },
+    "reference": "g19.pol"
+  },
+  {
+    "id": "g20",
+    "difficulty": "hard",
+    "english": "Guests and employees can read the wiki, and employees can also edit it. While the wiki is in read-only mode nobody can edit it, and when it is marked internal-only guests lose all access.",
+    "vocabulary": {
+      "subjects": [
+        "guest",
+        "employee"
+      ],
+      "resources": {
+        "wiki": [
+          "READ",
+          "WRITE"
+        ]
+      },
+      "attributes": [
+        "read_only_mode",
+        "internal_only"
+      ]
+    },
+    "reference": "g20.pol"
+  }
+]

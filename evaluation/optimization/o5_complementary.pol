@@ -1,0 +1,10 @@
+# Needs a rewrite: `a AND b` plus `a AND NOT b` is just `a`.
+SUBJECT analyst, intern
+RESOURCE dashboards SUPPORTS READ, WRITE
+RESOURCE datasets SUPPORTS READ
+
+ALLOW analyst READ dashboards WHEN authenticated AND on_vpn
+ALLOW analyst READ dashboards WHEN authenticated AND NOT on_vpn
+ALLOW intern READ datasets WHEN supervised AND training_done
+ALLOW intern READ datasets WHEN supervised AND NOT training_done
+ALLOW analyst WRITE dashboards WHEN owner

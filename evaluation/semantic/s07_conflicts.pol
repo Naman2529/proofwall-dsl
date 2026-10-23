@@ -1,0 +1,10 @@
+# ALLOW/DENY conflicts, and a pair that never overlaps (no warning).
+SUBJECT analyst, contractor
+RESOURCE reports SUPPORTS READ, WRITE
+RESOURCE build_api SUPPORTS EXECUTE
+
+ALLOW analyst READ reports WHEN authenticated
+DENY analyst READ reports WHEN on_public_wifi                 # expect: W103
+ALLOW contractor EXECUTE build_api WHEN on_vpn
+DENY contractor EXECUTE build_api WHEN NOT on_vpn
+ALLOW contractor READ reports

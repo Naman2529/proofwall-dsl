@@ -1,0 +1,5 @@
+# Reference for g07 (medium). Never shown to the model.
+SUBJECT analyst
+RESOURCE reports SUPPORTS READ, WRITE
+
+ALLOW analyst READ reports WHEN authenticated

@@ -15,7 +15,10 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import z3  # noqa: E402
+try:
+    import z3  # noqa: E402,F401
+except ImportError:
+    raise unittest.SkipTest("z3-solver not installed (pip install -r requirements.txt)")
 
 from policyc.verification import (MalformedPolicy, PolicyLoadError, Rule,  # noqa: E402
                                   decide, load_policy, load_policy_text, normalize,

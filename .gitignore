@@ -1,0 +1,25 @@
+# Byte-compiled / optimized files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# Bundles & Archives
+*.bundle
+*.zip
+*.tar.gz
+
+# IDE & OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+push_to_github.bat
+
+
+# Evaluation output (commit a real run with: git add -f evaluation/results)
+evaluation/results/

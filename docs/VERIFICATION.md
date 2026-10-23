@@ -40,22 +40,21 @@ Flags: `--backend layered|z3|enumerate|differential`, `--mode non-weakening|equi
 
 `candidate_stricter.pol` shows the difference: it passes the first and fails the second.
 
-## Plugging it into the rest of the compiler
+## How the rest of the compiler uses it
 
-1. **LLM optimizer loop** (`policyc/ai/llm_optimizer.py`):
-   ```python
-   from policyc.verification import verify_candidate
-   res = verify_candidate(original_ir, proposed_ir)       # mode="non-weakening"
-   if res.proven:
-       accept(proposed_ir)
-   else:
-       prompt += res.feedback()                           # counterexample text for the retry
-   ```
-2. **Compiler gate** (`compiler.py`): replace the call to `verifier.verify(ir, optimized)` with
-   `verify_candidate(ir, optimized, mode="equivalent")`. `.equivalent` and `.counterexample` still work; `str(res.counterexample)` has the same format the existing tests assert.
-3. **CLI** (`__main__.py` `verify` subcommand): call `verify_candidate(a_ir, b_ir, backend=args.backend)` and print `res.summary()`; exit 0 only if `res.proven`.
+All three call sites go through `policyc.verifier.verify()`, a thin wrapper around `verify_candidate()`:
 
-`normalize()` reads the IR by duck typing (`ir.rules`, and per rule `id/effect/subject/action/resource/condition/line`). Conditions are matched by class name (`Attr`/`Ident`, `And`, `Or`, `Not`) or by the codegen JSON shape. If the real AST classes differ, pass `cond_adapter=` (a 3-line function) instead of editing the verifier. **I wrote this against the interface the existing tests use; the compiler modules themselves are not in the repo yet, so run the tests once they are merged.**
+| Caller | Mode | Accepts only if |
+|---|---|---|
+| Compiler gate (`compile --optimize`) | `equivalent` | `res.equivalent` (proven, same decisions) |
+| CLI (`python -m policyc verify`, `--mode`, `--backend`) | `equivalent` by default | `res.proven` |
+| LLM optimizer loop (`ai/llm_optimizer.py`, `mode=` argument) | `equivalent` by default | `res.proven`; otherwise `res.feedback()` goes into the retry prompt |
+
+The optimizer paths default to `equivalent` because an optimizer must not change meaning; `non-weakening` is available wherever a stricter rewrite is acceptable. This standalone CLI keeps `non-weakening` as its default.
+
+Without `z3-solver`, `verify_z3()` returns UNPROVEN and the layered pipeline uses exact enumeration as its proof layer instead (still failing closed past 16 attributes per request), so the compiler itself has no hard dependency on Z3.
+
+`normalize()` reads the IR by duck typing (`ir.rules`, and per rule `id/effect/subject/action/resource/condition/line`). Conditions are matched by class name (`Attr`/`Ident`, `And`, `Or`, `Not`) or by the codegen JSON shape. `tests/test_integration.py` checks it reads the compiler's real IR identically to the source. This CLI compiles `.pol` files with the real front end; `loader.py` remains as a dependency-free reader for the unit tests (one statement per line).
 
 ## What to say in the review
 
@@ -70,28 +69,3 @@ Flags: `--backend layered|z3|enumerate|differential`, `--mode non-weakening|equi
 - Only requests that appear in some rule are enumerated; any request with no rules in either policy is DENY in both, so nothing is missed.
 - `cases_checked` is not comparable between backends: Z3 counts solver queries, enumeration counts attribute assignments. Requests whose rule sets are identical are skipped (provably the same decisions).
 - Z3 is part of the trusted base.
-
-## Repo cleanup before you commit
-
-The repo root has files that belong in folders (the tests import `helpers`, which expects to live in `tests/` with the `.pol` files in `examples/`):
-
-Do this after unzipping this package (it already puts identical copies of the `.pol` files in `examples/`, so the root copies just get removed). Tell the team first, since it touches their files:
-
-```
-git mv test_cli_ai.py test_ir.py test_lexer.py test_optimizer_verifier.py test_parser.py test_semantic.py helpers.py tests/
-git rm candidate_bad.pol candidate_good.pol optimizable.pol semantic_issues.pol syntax_errors.pol valid.pol
-git commit -m "Move tests into tests/ and sample policies into examples/"
-```
-
-Suggested branch and commits:
-
-```
-git checkout -b verify-z3
-git add policyc/verification
-git commit -m "Add Z3 non-weakening verifier, enumeration baseline and layered pipeline"
-git add tests examples requirements.txt
-git commit -m "Add verification tests and demo candidate policies"
-git add benchmarks docs
-git commit -m "Add Z3 vs enumeration benchmark and verification docs"
-git push -u origin verify-z3     # then open a pull request into main
-```

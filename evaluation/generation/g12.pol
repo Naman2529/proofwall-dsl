@@ -1,0 +1,6 @@
+# Reference for g12 (medium). Never shown to the model.
+SUBJECT student
+RESOURCE course_material SUPPORTS READ, WRITE
+
+ALLOW student READ course_material
+DENY student ACCESS course_material WHEN suspended

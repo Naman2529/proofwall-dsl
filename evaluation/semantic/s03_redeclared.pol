@@ -1,0 +1,8 @@
+# Names declared twice.
+SUBJECT admin, guest
+SUBJECT guest                            # expect: S004
+RESOURCE wiki SUPPORTS READ, WRITE
+RESOURCE wiki SUPPORTS READ              # expect: S005
+
+ALLOW admin ACCESS wiki
+ALLOW guest READ wiki

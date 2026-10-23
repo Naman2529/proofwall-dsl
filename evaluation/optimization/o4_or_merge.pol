@@ -1,0 +1,10 @@
+# Needs a rewrite: rules that differ only in condition can be joined with OR.
+SUBJECT employee, contractor
+RESOURCE hr_portal SUPPORTS READ, WRITE
+RESOURCE vpn_gateway SUPPORTS EXECUTE
+
+ALLOW employee READ hr_portal WHEN in_office
+ALLOW employee READ hr_portal WHEN on_vpn
+ALLOW employee WRITE hr_portal WHEN in_office AND mfa
+ALLOW contractor EXECUTE vpn_gateway WHEN badge_valid
+ALLOW contractor EXECUTE vpn_gateway WHEN escorted

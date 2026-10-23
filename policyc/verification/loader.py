@@ -1,8 +1,8 @@
 """Tiny standalone loader for .pol files, so the verifier can be run and tested
 without the rest of the compiler.
 
-It is NOT the compiler front end (no error recovery, no semantic warnings).
-When the full pipeline is available, feed the verifier its IR instead:
+It is NOT the compiler front end (no error recovery, no semantic warnings, and
+one statement per line). The CLI and the rest of policyc use the compiler's IR:
 
     from policyc.verification import verify_candidate
     verify_candidate(compile_file(a).ir, compile_file(b).ir)
@@ -90,7 +90,10 @@ def load_policy_text(text: str) -> List[Rule]:
         elif head == "RESOURCE":
             if len(toks) < 4 or toks[2] != "SUPPORTS":
                 raise PolicyLoadError("line %d: expected RESOURCE name SUPPORTS actions" % lineno)
-            resources[toks[1]] = [t for t in toks[3:] if t != ","]
+            actions = [t for t in toks[3:] if t != ","]
+            if "ACCESS" in actions:
+                raise PolicyLoadError("line %d: ACCESS cannot be listed in SUPPORTS" % lineno)
+            resources[toks[1]] = list(dict.fromkeys(actions))
         elif head in ("ALLOW", "DENY"):
             if len(toks) < 4:
                 raise PolicyLoadError("line %d: expected %s subject ACTION resource" % (lineno, head))

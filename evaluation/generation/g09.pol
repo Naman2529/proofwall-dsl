@@ -1,0 +1,5 @@
+# Reference for g09 (medium). Never shown to the model.
+SUBJECT employee
+RESOURCE hr_portal SUPPORTS READ, WRITE
+
+ALLOW employee READ hr_portal WHEN in_office OR on_vpn

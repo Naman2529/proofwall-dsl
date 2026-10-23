@@ -1,0 +1,10 @@
+# ALLOW rules that can never take effect.
+SUBJECT guest, intern
+RESOURCE payroll SUPPORTS READ, WRITE
+RESOURCE handbook SUPPORTS READ
+
+DENY guest ACCESS payroll
+ALLOW guest READ payroll WHEN invited                         # expect: W104
+DENY intern READ handbook
+ALLOW intern READ handbook                                    # expect: W104
+ALLOW intern READ payroll WHEN supervised

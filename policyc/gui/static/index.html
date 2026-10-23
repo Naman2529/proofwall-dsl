@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>policyc · ProofWall</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <span class="logo" aria-hidden="true">PW</span>
+    <div>
+      <h1>policyc <span class="sub">ProofWall</span></h1>
+      <p class="tagline">The LLM proposes. The compiler decides.</p>
+    </div>
+  </div>
+  <div class="top-right">
+    <div class="seg" role="group" aria-label="Model">
+      <button type="button" data-llm="gemini" id="llm-gemini">Gemini</button>
+      <button type="button" data-llm="fake" id="llm-fake">Fake</button>
+    </div>
+    <span class="model-chip" id="model-chip">…</span>
+    <button type="button" class="icon-btn" id="theme-toggle" title="Toggle dark mode" aria-label="Toggle dark mode">◐</button>
+  </div>
+</header>
+
+<nav class="tabs" role="tablist">
+  <button role="tab" data-tab="compile" class="active">Compile</button>
+  <button role="tab" data-tab="generate">Generate</button>
+  <button role="tab" data-tab="optimize">Optimize</button>
+  <button role="tab" data-tab="verify">Verify</button>
+  <button role="tab" data-tab="results">Results</button>
+</nav>
+
+<main>
+  <!-- COMPILE -->
+  <section class="tab-panel active" id="tab-compile">
+    <div class="split">
+      <div class="card">
+        <div class="toolbar">
+          <select id="compile-source" aria-label="Example policy"></select>
+          <label class="check"><input type="checkbox" id="compile-optimize" checked> Optimizer + verifier</label>
+          <button type="button" class="primary" id="compile-run">Compile <kbd>Ctrl ↵</kbd></button>
+        </div>
+        <div class="editor" id="compile-editor"></div>
+      </div>
+      <div class="card">
+        <div class="stepper" id="compile-steps"></div>
+        <div id="compile-summary" class="summary-line"></div>
+        <div id="compile-detail" class="detail"></div>
+        <div id="compile-diags"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- GENERATE -->
+  <section class="tab-panel" id="tab-generate">
+    <div class="split">
+      <div class="card">
+        <div class="toolbar">
+          <select id="gen-task" aria-label="Benchmark task"></select>
+          <label class="inline">Attempts <input type="number" id="gen-attempts" min="1" max="5" value="3"></label>
+          <button type="button" class="primary" id="gen-run">Generate</button>
+        </div>
+        <label class="field">Requirement (English)
+          <textarea id="gen-english" rows="4" placeholder="e.g. Analysts can read reports once they are authenticated."></textarea>
+        </label>
+        <div class="vocab">
+          <label class="field">Subjects <input id="gen-subjects" placeholder="analyst, guest"></label>
+          <label class="field">Resources <input id="gen-resources" placeholder="reports=READ,WRITE; api=EXECUTE"></label>
+          <label class="field">Attributes <input id="gen-attributes" placeholder="authenticated, on_vpn"></label>
+        </div>
+        <p class="hint">The model only proposes. Every answer must compile; if it does not, the compiler's
+          errors are sent back as structured feedback for another attempt.</p>
+      </div>
+      <div class="card">
+        <div id="gen-result" class="placeholder">Pick a benchmark task or type a requirement, then press Generate.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- OPTIMIZE -->
+  <section class="tab-panel" id="tab-optimize">
+    <div class="split">
+      <div class="card">
+        <div class="toolbar">
+          <select id="opt-source" aria-label="Policy to optimize"></select>
+          <label class="inline">Samples <input type="number" id="opt-samples" min="1" max="5" value="1"></label>
+          <label class="inline">Attempts <input type="number" id="opt-attempts" min="1" max="5" value="3"></label>
+          <select id="opt-mode" aria-label="Verification mode">
+            <option value="equivalent">equivalent</option>
+            <option value="non-weakening">non-weakening</option>
+          </select>
+          <button type="button" class="primary" id="opt-run">Optimize</button>
+        </div>
+        <div class="editor" id="opt-editor"></div>
+      </div>
+      <div class="card">
+        <div id="opt-result" class="placeholder">Each proposal must compile, keep the declarations, be proven by the verifier and be smaller.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- VERIFY -->
+  <section class="tab-panel" id="tab-verify">
+    <div class="card">
+      <div class="toolbar">
+        <select id="ver-preset" aria-label="Preset"></select>
+        <select id="ver-mode" aria-label="Verification mode">
+          <option value="equivalent">equivalent (same decisions)</option>
+          <option value="non-weakening">non-weakening (never allows more)</option>
+        </select>
+        <button type="button" class="primary" id="ver-run">Verify</button>
+      </div>
+      <div id="ver-verdict"></div>
+      <div class="split even">
+        <div><h3 class="pane-title">Original</h3><div class="editor" id="ver-original"></div></div>
+        <div><h3 class="pane-title">Candidate</h3><div class="editor" id="ver-candidate"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- RESULTS -->
+  <section class="tab-panel" id="tab-results">
+    <div id="results-body" class="placeholder">Loading…</div>
+  </section>
+</main>
+
+<div id="toast" role="status" aria-live="polite"></div>
+<script src="app.js"></script>
+</body>
+</html>

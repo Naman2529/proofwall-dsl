@@ -21,7 +21,7 @@ class OptimizerVerifierTests(unittest.TestCase):
     def test_compile_with_optimize_is_verified(self):
         res = compile_file(example("optimizable.pol"), optimize_ir=True)
         self.assertTrue(res.verification.equivalent)
-        self.assertEqual(res.verification.cases_checked, 14)
+        self.assertEqual((res.verification.proven, res.verification.mode), (True, "equivalent"))
         self.assertEqual(len(res.target["rules"]), 6)
 
     def test_good_candidate_accepted(self):
