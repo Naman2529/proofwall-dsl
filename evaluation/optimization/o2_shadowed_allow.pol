@@ -1,0 +1,11 @@
+# Baseline handles: ALLOW rules an unconditional DENY always beats.
+SUBJECT contractor, employee
+RESOURCE payroll SUPPORTS READ, WRITE
+RESOURCE wiki SUPPORTS READ, WRITE
+
+DENY contractor ACCESS payroll
+ALLOW contractor READ payroll WHEN manager_approved
+ALLOW contractor WRITE payroll
+ALLOW employee READ payroll WHEN own_record
+ALLOW employee ACCESS wiki
+ALLOW contractor READ wiki

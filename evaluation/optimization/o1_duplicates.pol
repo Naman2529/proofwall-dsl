@@ -1,0 +1,11 @@
+# Baseline handles: exact duplicates, including reordered conditions.
+SUBJECT admin, analyst, auditor
+RESOURCE reports SUPPORTS READ, WRITE
+RESOURCE audit_log SUPPORTS READ
+
+ALLOW admin ACCESS reports
+ALLOW analyst READ reports WHEN authenticated AND on_vpn
+ALLOW analyst READ reports WHEN on_vpn AND authenticated
+ALLOW auditor READ audit_log
+ALLOW auditor READ audit_log
+ALLOW admin READ audit_log WHEN mfa

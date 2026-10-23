@@ -1,0 +1,7 @@
+# Reference for g19 (hard). Never shown to the model.
+SUBJECT admin, helpdesk
+RESOURCE user_directory SUPPORTS READ, WRITE, EXECUTE
+
+ALLOW admin ACCESS user_directory
+ALLOW helpdesk READ user_directory
+ALLOW helpdesk WRITE user_directory WHEN business_hours AND managed_device

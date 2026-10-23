@@ -1,0 +1,13 @@
+# Both kinds: a duplicate and a shadowed ALLOW (baseline) plus an OR-merge and an ACCESS merge.
+SUBJECT admin, guest, analyst
+RESOURCE database SUPPORTS READ, WRITE
+RESOURCE reports SUPPORTS READ, WRITE
+
+ALLOW admin READ database
+ALLOW admin WRITE database
+ALLOW admin READ database
+DENY guest ACCESS database
+ALLOW guest READ database WHEN invited
+ALLOW analyst READ reports WHEN authenticated
+ALLOW analyst READ reports WHEN service_account
+ALLOW guest READ reports

@@ -1,0 +1,8 @@
+# Reference for g20 (hard). Never shown to the model.
+SUBJECT guest, employee
+RESOURCE wiki SUPPORTS READ, WRITE
+
+ALLOW guest READ wiki
+ALLOW employee ACCESS wiki
+DENY employee WRITE wiki WHEN read_only_mode
+DENY guest ACCESS wiki WHEN internal_only

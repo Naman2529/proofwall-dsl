@@ -1,0 +1,5 @@
+# Reference for g16 (hard). Never shown to the model.
+SUBJECT trader
+RESOURCE order_system SUPPORTS READ, EXECUTE
+
+ALLOW trader EXECUTE order_system WHEN market_open AND (mfa OR floor_terminal)

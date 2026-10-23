@@ -5,6 +5,8 @@
     python -m policyc verify ORIGINAL CANDIDATE [--mode equivalent|non-weakening]
                                                 [--backend layered|z3|enumerate|differential]
 
+    python -m policyc generate | optimize | evaluate ...   (AI stages, see policyc/ai/cli.py)
+
 Exit codes: 0 success / proven, 1 compile errors / rejected / unproven, 2 bad usage or I/O.
 """
 
@@ -109,6 +111,11 @@ def _cmd_verify(args) -> int:
 
 
 def main(argv=None) -> int:
+    # Model output can contain any character; a redirected Windows console
+    # (cp1252) must not crash on one.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="backslashreplace")
     ap = argparse.ArgumentParser(prog="policyc",
                                  description="Cybersecurity policy DSL compiler")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -130,6 +137,9 @@ def main(argv=None) -> int:
                    help="equivalent: same decisions (default); non-weakening: never allows more")
     v.add_argument("--backend", choices=BACKENDS, default="layered")
     v.set_defaults(func=_cmd_verify)
+
+    from .ai.cli import add_commands
+    add_commands(sub)
 
     args = ap.parse_args(argv)
     return args.func(args)

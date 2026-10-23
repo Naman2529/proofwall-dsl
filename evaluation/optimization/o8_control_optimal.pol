@@ -1,0 +1,9 @@
+# Control: already minimal. A good optimizer changes nothing.
+SUBJECT admin, analyst, guest
+RESOURCE database SUPPORTS READ, WRITE
+RESOURCE reports SUPPORTS READ, WRITE
+
+ALLOW admin ACCESS database
+ALLOW analyst READ reports WHEN authenticated
+DENY guest ACCESS database
+ALLOW guest READ reports

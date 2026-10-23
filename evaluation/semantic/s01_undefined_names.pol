@@ -1,0 +1,10 @@
+# Undefined subjects and resources, next to clean rules.
+SUBJECT admin, analyst
+RESOURCE database SUPPORTS READ, WRITE
+RESOURCE reports SUPPORTS READ
+
+ALLOW admin ACCESS database
+ALLOW admni READ reports                 # expect: S001
+ALLOW analyst READ reprots               # expect: S002
+ALLOW analyst READ reports
+ALLOW intern READ logs                   # expect: S001, S002

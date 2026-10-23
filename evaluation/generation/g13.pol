@@ -1,0 +1,6 @@
+# Reference for g13 (medium). Never shown to the model.
+SUBJECT manager, finance
+RESOURCE expenses SUPPORTS READ, WRITE
+
+ALLOW manager WRITE expenses WHEN NOT is_requester
+ALLOW finance READ expenses

@@ -1,0 +1,5 @@
+# Reference for g14 (medium). Never shown to the model.
+SUBJECT ci_bot
+RESOURCE build_pipeline SUPPORTS EXECUTE
+
+ALLOW ci_bot EXECUTE build_pipeline WHEN commit_signed

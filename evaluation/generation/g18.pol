@@ -1,0 +1,6 @@
+# Reference for g18 (hard). Never shown to the model.
+SUBJECT researcher
+RESOURCE dataset SUPPORTS READ, WRITE
+
+ALLOW researcher READ dataset WHEN signed_agreement
+DENY researcher READ dataset WHEN restricted AND NOT ethics_approved

@@ -1,0 +1,7 @@
+# Reference for g10 (medium). Never shown to the model.
+SUBJECT developer
+RESOURCE staging SUPPORTS EXECUTE
+RESOURCE production SUPPORTS EXECUTE
+
+ALLOW developer EXECUTE staging
+ALLOW developer EXECUTE production WHEN change_approved

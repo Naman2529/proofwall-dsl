@@ -1,0 +1,7 @@
+# Reference for g05 (easy). Never shown to the model.
+SUBJECT auditor, developer
+RESOURCE audit_log SUPPORTS READ, WRITE
+RESOURCE repo SUPPORTS READ, WRITE
+
+ALLOW auditor READ audit_log
+ALLOW developer ACCESS repo

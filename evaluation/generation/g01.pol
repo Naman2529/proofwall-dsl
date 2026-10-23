@@ -1,0 +1,5 @@
+# Reference for g01 (easy). Never shown to the model.
+SUBJECT admin, guest
+RESOURCE customer_db SUPPORTS READ, WRITE
+
+ALLOW admin ACCESS customer_db

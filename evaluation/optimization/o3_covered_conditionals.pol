@@ -1,0 +1,12 @@
+# Baseline handles: conditional rules already covered by an unconditional one.
+SUBJECT admin, support
+RESOURCE tickets SUPPORTS READ, WRITE, EXECUTE
+RESOURCE kb SUPPORTS READ, WRITE
+
+ALLOW admin ACCESS tickets
+ALLOW admin EXECUTE tickets WHEN mfa
+ALLOW admin WRITE tickets WHEN business_hours
+ALLOW support READ tickets
+ALLOW support READ tickets WHEN on_shift
+ALLOW support WRITE tickets WHEN on_shift
+ALLOW support READ kb
