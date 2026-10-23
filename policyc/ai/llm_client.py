@@ -17,6 +17,7 @@ The API key is never printed, logged, stored or put in an exception message.
 
 from __future__ import annotations
 
+import http.client
 import json
 import os
 import time
@@ -107,18 +108,29 @@ class FakeClient:
 
 
 class GeminiClient:
-    """Gemini generateContent over HTTPS with retries on 429/503."""
+    """Gemini generateContent over HTTPS with retries on 429/503.
+
+    Every failure leaves complete() as an LLMError whose message never
+    contains the key: quota (429/503 after retries), auth (missing or
+    malformed key, 401/403, or a 400 that names the key), bad_response
+    (unparseable or empty answer) and network (everything else).
+    """
 
     def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None,
                  temperature: float = 0.2, base_url: str = DEFAULT_BASE_URL,
-                 max_retries: int = 3, backoff_s: float = 2.0, timeout_s: float = 60.0):
-        self._key = api_key if api_key is not None else os.environ.get("GEMINI_API_KEY")
+                 max_retries: int = 3, backoff_s: float = 2.0, timeout_s: float = 60.0,
+                 max_wait_s: float = 60.0):
+        raw = api_key if api_key is not None else os.environ.get("GEMINI_API_KEY")
+        # Keys pasted from files often end in a newline; anything else odd is rejected.
+        self._key = raw.strip() if raw else ""
+        self._key_ok = bool(self._key) and all(33 <= ord(ch) < 127 for ch in self._key)
         self.model = model or os.environ.get("POLICYC_MODEL") or DEFAULT_MODEL
         self.temperature = temperature
         self.base_url = base_url.rstrip("/")
         self.max_retries = max_retries
         self.backoff_s = backoff_s
         self.timeout_s = timeout_s
+        self.max_wait_s = max_wait_s
         self.name = "gemini:%s" % self.model
 
     def __repr__(self) -> str:
@@ -127,6 +139,8 @@ class GeminiClient:
     def complete(self, prompt: str, n: int = 1) -> List[Completion]:
         if not self._key:
             raise LLMError("auth", "no API key: set GEMINI_API_KEY")
+        if not self._key_ok:
+            raise LLMError("auth", "GEMINI_API_KEY contains whitespace or control characters")
         if n == 1:
             return self._request(prompt, 1)
         try:
@@ -153,58 +167,71 @@ class GeminiClient:
             try:
                 with urllib.request.urlopen(req, timeout=self.timeout_s) as resp:
                     raw = resp.read()
-                return self._parse(raw, n, time.perf_counter() - start)
             except urllib.error.HTTPError as e:
-                detail = self._error_message(e)
+                message, body_text = self._error_info(e)
                 if e.code in (429, 503) and attempt < self.max_retries:
                     time.sleep(self._wait(e, attempt))
                     continue
                 if e.code in (429, 503):
                     raise LLMError("quota", "HTTP %d after %d retries: %s"
-                                   % (e.code, self.max_retries, detail)) from None
-                if e.code in (401, 403):
-                    raise LLMError("auth", "HTTP %d: %s" % (e.code, detail)) from None
-                if e.code == 400 and n > 1 and "candidatecount" in detail.lower():
+                                   % (e.code, self.max_retries, message)) from None
+                if e.code in (401, 403) or (e.code == 400 and (
+                        "api_key_invalid" in body_text or "api key" in body_text)):
+                    raise LLMError("auth", "HTTP %d: %s" % (e.code, message)) from None
+                if e.code == 400 and n > 1:
                     raise _CandidateCountRejected() from None
-                raise LLMError("network", "HTTP %d: %s" % (e.code, detail)) from None
+                raise LLMError("network", "HTTP %d: %s" % (e.code, message)) from None
             except urllib.error.URLError as e:
                 raise LLMError("network", self._scrub(str(e.reason))) from None
+            except (OSError, http.client.HTTPException, ValueError) as e:
+                # Connection reset or closed, timeout, truncated body, bad header value.
+                raise LLMError("network", self._scrub("%s: %s" % (type(e).__name__, e))) from None
+            return self._parse(raw, n, time.perf_counter() - start)
         raise LLMError("quota", "retries exhausted")  # pragma: no cover
 
     def _wait(self, e: urllib.error.HTTPError, attempt: int) -> float:
         try:
-            return float(e.headers.get("Retry-After"))
+            wait = float(e.headers.get("Retry-After"))
         except (TypeError, ValueError):
-            return self.backoff_s * (2 ** attempt)
+            wait = self.backoff_s * (2 ** attempt)
+        return max(0.0, min(wait, self.max_wait_s))
 
-    def _error_message(self, e: urllib.error.HTTPError) -> str:
+    def _error_info(self, e: urllib.error.HTTPError):
+        """(scrubbed message, lowercased body) of an HTTP error response."""
         try:
-            data = json.loads(e.read().decode("utf-8", "replace"))
-            message = str(data.get("error", {}).get("message", ""))
+            text = e.read().decode("utf-8", "replace")
+        except (OSError, http.client.HTTPException):
+            text = ""
+        try:
+            message = str(json.loads(text).get("error", {}).get("message", ""))
         except (ValueError, AttributeError):
             message = ""
-        return self._scrub(message) or (e.reason or "")
+        return self._scrub(message) or (e.reason or ""), self._scrub(text).lower()
 
     def _parse(self, raw: bytes, n: int, latency: float) -> List[Completion]:
         try:
             data = json.loads(raw.decode("utf-8"))
         except ValueError:
             raise LLMError("bad_response", "response is not JSON") from None
-        candidates = data.get("candidates") if isinstance(data, dict) else None
-        if not candidates:
-            reason = data.get("promptFeedback", {}).get("blockReason") if isinstance(data, dict) else None
-            raise LLMError("bad_response", "no candidates in response%s"
-                           % (" (blocked: %s)" % reason if reason else ""))
-        usage = data.get("usageMetadata", {})
-        prompt_tokens = usage.get("promptTokenCount")
-        output = usage.get("candidatesTokenCount")
-        per_candidate = output // len(candidates) if output is not None else None
-        out = []
-        for i, cand in enumerate(candidates):
-            parts = (cand.get("content") or {}).get("parts") or []
-            text = "".join(p.get("text", "") for p in parts)
-            out.append(Completion(text, prompt_tokens if i == 0 else None, per_candidate, latency))
-        return out
+        try:
+            candidates = data.get("candidates") if isinstance(data, dict) else None
+            if not candidates or not isinstance(candidates, list):
+                feedback = (data.get("promptFeedback") if isinstance(data, dict) else None) or {}
+                reason = feedback.get("blockReason")
+                raise LLMError("bad_response", "no candidates in response%s"
+                               % (" (blocked: %s)" % reason if reason else ""))
+            usage = data.get("usageMetadata") or {}
+            prompt_tokens = usage.get("promptTokenCount")
+            output = usage.get("candidatesTokenCount")
+            per_candidate = output // len(candidates) if output is not None else None
+            out = []
+            for i, cand in enumerate(candidates):
+                parts = (cand.get("content") or {}).get("parts") or []
+                text = "".join(p.get("text", "") for p in parts)
+                out.append(Completion(text, prompt_tokens if i == 0 else None, per_candidate, latency))
+            return out
+        except (AttributeError, TypeError, KeyError):
+            raise LLMError("bad_response", "unexpected response shape") from None
 
 
 class _CandidateCountRejected(Exception):

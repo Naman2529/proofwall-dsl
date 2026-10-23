@@ -111,6 +111,11 @@ def _cmd_verify(args) -> int:
 
 
 def main(argv=None) -> int:
+    # Model output can contain any character; a redirected Windows console
+    # (cp1252) must not crash on one.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="backslashreplace")
     ap = argparse.ArgumentParser(prog="policyc",
                                  description="Cybersecurity policy DSL compiler")
     sub = ap.add_subparsers(dest="cmd", required=True)

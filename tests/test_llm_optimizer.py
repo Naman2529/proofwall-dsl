@@ -78,6 +78,20 @@ class OptimizerTests(unittest.TestCase):
                                     mode="non-weakening")
         self.assertIsNotNone(relaxed.accepted)
 
+    def test_non_weakening_prefers_equivalent_and_flags_stricter(self):
+        deny_all = "SUBJECT admin, analyst, guest\nRESOURCE database SUPPORTS READ, WRITE\n" \
+                   "RESOURCE reports  SUPPORTS READ, WRITE\n"
+        res = optimize_with_llm(ORIGINAL, llm=FakeClient([deny_all, GOOD]), samples=2,
+                                mode="non-weakening")
+        self.assertEqual(stages(res), ["accepted", "accepted"])
+        self.assertTrue(res.proposals[0].stricter)
+        self.assertFalse(res.proposals[1].stricter)
+        self.assertEqual(res.accepted.dsl, GOOD.strip())       # equivalent beats smaller-but-stricter
+        alone = optimize_with_llm(ORIGINAL, llm=FakeClient([deny_all]), mode="non-weakening")
+        self.assertTrue(alone.accepted.stricter)
+        self.assertEqual(alone.accepted.tier, "verified")      # never "improving" if it changes decisions
+        self.assertIsNone(optimize_with_llm(ORIGINAL, llm=FakeClient([GOOD])).accepted.stricter)
+
     def test_dropping_a_redundant_deny_is_flagged_but_accepted(self):
         source = "SUBJECT g\nRESOURCE r SUPPORTS READ\nALLOW g READ r WHEN x\nDENY g READ r WHEN NOT x\n"
         res = optimize_with_llm(source, llm=FakeClient(["SUBJECT g\nRESOURCE r SUPPORTS READ\n"

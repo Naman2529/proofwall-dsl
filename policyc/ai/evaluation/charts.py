@@ -16,6 +16,7 @@ import os
 from typing import List
 
 from ..metrics import TIERS
+from .report import BANNER
 
 SURFACE = "#fcfcfb"
 INK = "#0b0b0b"
@@ -77,6 +78,10 @@ def write_charts(out_dir: str, summary: dict) -> List[str]:
         path = os.path.join(out_dir, name)
         fig.patch.set_facecolor(SURFACE)
         fig.tight_layout()
+        if summary.get("fake"):
+            # After tight_layout, so the label sits in the top margin, not on the data.
+            fig.text(0.5, 0.995, BANNER, ha="center", va="top", fontsize=11,
+                     color=INK, fontweight="bold")
         fig.savefig(path, dpi=150, facecolor=SURFACE)
         plt.close(fig)
         paths.append(path)

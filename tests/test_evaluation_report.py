@@ -184,6 +184,25 @@ class WriteTests(unittest.TestCase):
 
 
 class ChartTests(unittest.TestCase):
+    def test_fake_charts_carry_the_banner(self):
+        try:
+            from matplotlib.figure import Figure
+        except ImportError:
+            self.skipTest("matplotlib not installed")
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp)
+        figures = []
+        real_savefig = Figure.savefig
+
+        def capture(fig, *args, **kwargs):
+            figures.append([t.get_text() for t in fig.texts])
+            return real_savefig(fig, *args, **kwargs)
+
+        with mock.patch.object(Figure, "savefig", capture):
+            charts.write_charts(tmp, summarize([dict(r, fake=True) for r in GEN], OPT, SEM))
+        self.assertEqual(len(figures), 4)
+        self.assertTrue(all(BANNER in texts for texts in figures))
+
     def test_no_matplotlib_means_no_charts(self):
         tmp = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, tmp)

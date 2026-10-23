@@ -21,7 +21,7 @@ class QuotaOnThird:
 
     def complete(self, prompt, n=1):
         self.calls += 1
-        if self.calls == 4:          # g01 takes two calls (wrong once), g02 one, g03 is next
+        if self.calls >= 4:          # g01 takes two calls (wrong once), g02 one, g03 is next
             raise LLMError("quota", "HTTP 429 after 3 retries")
         return self.inner.complete(prompt, n)
 
@@ -68,12 +68,30 @@ class RunTests(unittest.TestCase):
         records = run_generation(fake, self.cfg, self.raw, limit=3)
         self.assertEqual([r["task"] for r in records], ["g01", "g02", "g03"])
         self.assertEqual(len(fake.prompts), 1)   # only g03 ran again
+        third = fake_client_for(EVAL_ROOT)
+        run_generation(third, self.cfg, self.raw, limit=3)
+        self.assertEqual(third.prompts, [])      # the rerun result was kept
+        self.assertEqual(sorted(r["task"] for r in read_raw(self.raw)), ["g01", "g02", "g03"])
 
-    def test_quota_error_is_recorded_as_not_run_and_the_run_continues(self):
+    def test_cut_inside_a_multibyte_character(self):
+        run_generation(fake_client_for(EVAL_ROOT), self.cfg, self.raw, limit=2)
+        with open(self.raw, "ab") as f:
+            f.write('{"task": "g03", "dsl": "é'.encode("utf-8")[:-1] + "é".encode("utf-8")[:1])
+        records = run_generation(fake_client_for(EVAL_ROOT), self.cfg, self.raw, limit=3)
+        self.assertEqual([r["task"] for r in records], ["g01", "g02", "g03"])
+
+    def test_progress_is_reported_per_task(self):
+        lines = []
+        run_generation(fake_client_for(EVAL_ROOT), self.cfg, self.raw, limit=3, progress=lines.append)
+        self.assertEqual(len(lines), 3)
+        self.assertIn("g01", lines[0])
+
+    def test_quota_error_marks_the_rest_not_run_without_calling(self):
         client = QuotaOnThird(fake_client_for(EVAL_ROOT))
         records = run_generation(client, RunConfig(llm_name="quota-test"), self.raw, limit=5)
-        self.assertEqual([r["status"] for r in records], ["ok", "ok", "not_run", "ok", "ok"])
+        self.assertEqual([r["status"] for r in records], ["ok", "ok", "not_run", "not_run", "not_run"])
         self.assertEqual(records[2]["error_kind"], "quota")
+        self.assertEqual(client.calls, 4)            # no calls after the quota ran out
         retry = run_generation(fake_client_for(EVAL_ROOT), RunConfig(llm_name="quota-test"),
                                self.raw, limit=5)
         self.assertEqual(retry[2]["status"], "ok")   # not_run tasks are retried on resume

@@ -8,6 +8,7 @@ from unittest import mock
 
 from policyc.__main__ import main
 from policyc.ai.evaluation.report import BANNER
+from policyc.ai.llm_client import FakeClient
 from policyc.compiler import compile_file
 
 from helpers import example
@@ -92,6 +93,39 @@ class CliTests(unittest.TestCase):
         self.assertIn("skipped", err)
         self.assertIn("GEMINI_API_KEY", err)
         self.assertIn("baseline on all policies", out)
+
+    def test_generate_survives_a_cp1252_stdout_and_writes_the_file(self):
+        path = os.path.join(self.tmp, "out.pol")
+        reply = "SUBJECT a  # a → b\nRESOURCE r SUPPORTS READ\nALLOW a READ r\n"
+        stdout = io.TextIOWrapper(io.BytesIO(), encoding="cp1252")
+        with mock.patch("policyc.ai.cli._client", lambda name, fake: FakeClient([reply])), \
+                redirect_stdout(stdout), redirect_stderr(io.StringIO()):
+            code = main(["generate", "x", "-o", path])
+        self.assertEqual(code, 0)
+        with open(path, encoding="utf-8") as f:
+            self.assertIn("→", f.read())
+
+    def test_optimize_warns_when_the_accepted_rewrite_is_stricter(self):
+        deny_all = ("SUBJECT employee, contractor\nRESOURCE hr_portal SUPPORTS READ, WRITE\n"
+                    "RESOURCE vpn_gateway SUPPORTS EXECUTE\n")
+        with mock.patch("policyc.ai.cli._client", lambda name, fake: FakeClient([deny_all])):
+            code, out, _ = run(["optimize", os.path.join("evaluation", "optimization", "o4_or_merge.pol"),
+                                "--mode", "non-weakening"])
+        self.assertEqual(code, 0)
+        self.assertIn("STRICTER than the original", out)
+
+    def test_fresh_only_clears_the_selected_suite(self):
+        run(["evaluate", "--llm", "fake", "--limit", "1", "--out", self.tmp])
+        run(["evaluate", "--llm", "fake", "--suite", "generation", "--limit", "1", "--fresh",
+             "--out", self.tmp])
+        self.assertTrue(os.path.exists(os.path.join(self.tmp, "raw", "optimization.jsonl")))
+
+    def test_single_suite_run_keeps_earlier_ai_results_in_the_reports(self):
+        run(["evaluate", "--llm", "fake", "--limit", "2", "--out", self.tmp])
+        with mock.patch.dict(os.environ, NO_KEY, clear=True):
+            run(["evaluate", "--suite", "semantic", "--out", self.tmp])
+        with open(os.path.join(self.tmp, "results.md"), encoding="utf-8") as f:
+            self.assertIn("| all | 2 |", f.read())
 
     def test_evaluate_fresh_removes_old_raw_records(self):
         run(["evaluate", "--llm", "fake", "--suite", "generation", "--limit", "2", "--out", self.tmp])

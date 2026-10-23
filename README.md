@@ -21,7 +21,7 @@ python -m policyc.verification verify examples/optimizable.pol examples/candidat
 python -m policyc generate --task g16 --llm fake                # English -> DSL (drop --llm fake with a key)
 python -m policyc optimize evaluation/optimization/o4_or_merge.pol --llm fake
 python -m policyc evaluate --llm fake                            # every Review 1 metric, see docs/EVALUATION.md
-python -m unittest discover -s tests -v                          # 176 tests (144 without z3)
+python -m unittest discover -s tests -v                          # 204 tests (172 without z3)
 ```
 
 Other flags: `--emit tokens|ast|ir|json|all`, `-o out.json` to save the target policy, `--json-diagnostics` to print errors as JSON.
@@ -232,7 +232,7 @@ Every error and warning is an object with a code, phase, message, line, column, 
 6. `generate --task g16`. "The model writes the policy; if it does not compile, the compiler's errors go back to it."
 7. `optimize evaluation/optimization/o4_or_merge.pol`. "Every proposal is compiled and proven before it is accepted; rejected ones get a counterexample."
 8. `evaluate` (or open `evaluation/results/results.md`). The Review 1 numbers.
-9. Run the tests: 176 passing.
+9. Run the tests: 204 passing.
 
 ---
 
@@ -295,7 +295,7 @@ policyc/
     evaluation/        benchmark loaders, resumable runner, reports, charts
 examples/              the .pol files used in the demo
 evaluation/            benchmark data (generation, optimization, semantic); results/ is git-ignored
-tests/                 176 unittest tests (test_verification.py is skipped without z3-solver)
+tests/                 204 unittest tests (test_verification.py is skipped without z3-solver)
 benchmarks/            Z3 vs enumeration timing
 docs/                  VERIFICATION.md, EVALUATION.md, superpowers/ (design spec and plan)
 ```

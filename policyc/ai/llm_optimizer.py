@@ -14,7 +14,10 @@ goes through these stages in order, stopping at the first failure:
 Each attempt asks for `samples` proposals; the smallest accepted one wins and
 the loop stops. Failures go back to the model as feedback (compiler errors,
 counterexamples, "not smaller"). If nothing is accepted the original policy
-is kept: the AI can make a policy smaller, never different.
+is kept. In the default "equivalent" mode the AI can make a policy smaller,
+never different. In "non-weakening" mode an accepted rewrite may deny more
+than the original: such proposals are marked `stricter`, never count as
+"improving", and lose to an equivalent proposal of any size.
 """
 
 from __future__ import annotations
@@ -42,6 +45,9 @@ class Proposal:
     drops_deny_guard: bool
     completion: Completion
     note: str = ""                  # declaration difference, for feedback and reports
+    # mode "non-weakening" only: True if proven safe but it denies some request
+    # the original allowed. None when not checked.
+    stricter: Optional[bool] = None
 
     @property
     def accepted(self) -> bool:
@@ -51,8 +57,9 @@ class Proposal:
     def tier(self) -> str:
         if self.stage == "compile":
             return tier(self.compiled) if not self.compiled.ok else "invalid"
+        # A stricter rewrite changes decisions, so it is never "improving".
         return tier(self.compiled, verified=self.stage in ("not_smaller", "accepted"),
-                    smaller=self.accepted)
+                    smaller=self.accepted and not self.stricter)
 
 
 @dataclass
@@ -119,9 +126,11 @@ def _check(original: CompileResult, dsl: str, attempt: int, completion: Completi
     verification = verify(original.ir, compiled.ir, mode=mode)
     if not verification.proven:
         return proposal("verifier", verification)
-    if size(compiled) >= size(original):
-        return proposal("not_smaller", verification)
-    return proposal("accepted", verification)
+    stage = "not_smaller" if size(compiled) >= size(original) else "accepted"
+    p = proposal(stage, verification)
+    if mode != "equivalent":
+        p.stricter = not verify(original.ir, compiled.ir, mode="equivalent").proven
+    return p
 
 
 def _feedback(p: Proposal, original: CompileResult, label: str) -> str:
@@ -162,7 +171,8 @@ def optimize_with_llm(source: str, llm=None, max_attempts: int = 3, samples: int
         out.proposals.extend(batch)
         accepted = [p for p in batch if p.accepted]
         if accepted:
-            out.chosen = min(accepted, key=lambda p: p.size)
+            # Same meaning beats smaller-but-stricter; then the smallest wins.
+            out.chosen = min(accepted, key=lambda p: (bool(p.stricter), p.size))
             break
         feedback = "\n".join(_feedback(p, original, "Proposal %d" % i)
                              for i, p in enumerate(batch, 1))

@@ -20,8 +20,8 @@ import sys
 from ..compiler import compile_source
 from .evaluation import charts
 from .evaluation.report import BANNER, summarize, write_reports
-from .evaluation.run import (RunConfig, fake_client_for, run_generation, run_optimization,
-                             run_semantic)
+from .evaluation.run import (RunConfig, fake_client_for, latest_records, run_generation,
+                             run_optimization, run_semantic)
 from .evaluation.tasks import EVAL_ROOT, load_generation_tasks
 from .generator import generate_policy
 from .llm_client import FakeClient, LLMError, default_client
@@ -97,11 +97,11 @@ def cmd_generate(args) -> int:
     if not res.ok:
         print("no policy compiled after %d attempt(s)" % len(res.attempts))
         return 1
+    if args.output:            # before printing: the console may not encode every character
+        _write(args.output, res.dsl.rstrip() + "\n")
     print("\n" + res.dsl)
     for d in res.attempts[-1].result.warnings:
         print(d.format("<generated>", res.dsl), file=sys.stderr)
-    if args.output:
-        _write(args.output, res.dsl.rstrip() + "\n")
     return 0
 
 
@@ -134,22 +134,27 @@ def cmd_optimize(args) -> int:
     if res.accepted is None:
         print("no proposal accepted after %d attempt(s); keeping the original" % args.attempts)
         return 1
+    if args.output:
+        _write(args.output, res.final_source)
     print("accepted: IR rules %d -> %d, statements %d -> %d%s" % (
         res.rules_before, res.rules_after, res.statements_before, res.statements_after,
         " (drops a DENY rule)" if res.accepted.drops_deny_guard else ""))
+    print("  " + res.accepted.verification.summary())
+    if res.accepted.stricter:
+        print("  WARNING: STRICTER than the original: it denies some requests the original "
+              "allowed (check with: python -m policyc verify ORIGINAL NEW)")
     print("\n" + res.final_source, end="")
-    if args.output:
-        _write(args.output, res.final_source)
     return 0
 
 
 def cmd_evaluate(args) -> int:
     suites = ("generation", "optimization", "semantic") if args.suite == "all" else (args.suite,)
     raw = os.path.join(args.out, "raw")
-    if args.fresh:
-        for name in ("generation.jsonl", "optimization.jsonl"):
-            if os.path.exists(os.path.join(raw, name)):
-                os.remove(os.path.join(raw, name))
+    gen_raw, opt_raw = os.path.join(raw, "generation.jsonl"), os.path.join(raw, "optimization.jsonl")
+    if args.fresh:             # only the suites being run; other results stay
+        for suite, path in (("generation", gen_raw), ("optimization", opt_raw)):
+            if suite in suites and os.path.exists(path):
+                os.remove(path)
     llm = args.llm or os.environ.get("POLICYC_LLM") or "gemini"
     client = None
     if llm == "fake":
@@ -157,14 +162,24 @@ def cmd_evaluate(args) -> int:
     elif os.environ.get("GEMINI_API_KEY"):
         client = default_client(llm)
     elif set(suites) & {"generation", "optimization"}:
-        print("AI suites skipped: set GEMINI_API_KEY (or use --llm fake). Running the semantic "
-              "suite and the compiler-only baseline.", file=sys.stderr)
+        print("AI suites skipped: set GEMINI_API_KEY (or use --llm fake). Reports show earlier "
+              "results where they exist%s." % (
+                  ", and the compiler-only baseline" if "optimization" in suites else ""),
+              file=sys.stderr)
     name = client.name if client else "none"
     cfg = RunConfig(llm_name=name, samples=args.samples, attempts=args.attempts, mode=args.mode)
-    gen = (run_generation(client, cfg, os.path.join(raw, "generation.jsonl"), limit=args.limit)
-           if "generation" in suites and client else [])
-    opt = (run_optimization(client, cfg, os.path.join(raw, "optimization.jsonl"), limit=args.limit)
-           if "optimization" in suites else [])
+    progress = lambda line: print(line, file=sys.stderr)
+    # Suites not run now keep their latest earlier results in the reports.
+    if "generation" in suites and client:
+        gen = run_generation(client, cfg, gen_raw, limit=args.limit, progress=progress)
+    else:
+        gen = latest_records(gen_raw)
+    if "optimization" in suites and client:
+        opt = run_optimization(client, cfg, opt_raw, limit=args.limit, progress=progress)
+    else:
+        opt = latest_records(opt_raw)
+        if not opt and "optimization" in suites:
+            opt = run_optimization(None, cfg, opt_raw, limit=args.limit)
     sem = run_semantic() if "semantic" in suites else []
     info = {"date": datetime.datetime.now().isoformat(timespec="seconds"), "llm": name,
             "prompt_version": PROMPT_VERSION, "attempts": args.attempts, "samples": args.samples,

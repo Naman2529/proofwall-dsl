@@ -2,6 +2,7 @@
 import json
 import os
 import threading
+import time
 import unittest
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from unittest import mock
@@ -33,6 +34,12 @@ class Stub:
                                       "headers": {k.lower(): v for k, v in self.headers.items()},
                                       "body": json.loads(self.rfile.read(length) or b"{}")})
                 status, headers, body = stub.responses.pop(0)
+                if status == "close":            # hang up without answering
+                    self.close_connection = True
+                    return
+                if status == "sleep":            # answer too late
+                    time.sleep(body)
+                    return
                 data = body if isinstance(body, bytes) else json.dumps(body).encode()
                 self.send_response(status)
                 for k, v in headers.items():
@@ -152,6 +159,66 @@ class GeminiClientTests(unittest.TestCase):
             self.assertNotIn(KEY, str(cm.exception))
             self.assertNotIn(KEY, repr(cm.exception))
         self.assertNotIn(KEY, repr(client))
+
+
+class ReviewFixTests(GeminiClientTests):
+    """Failures found in the final review: nothing may escape as a raw exception
+    and nothing may echo the key."""
+
+    def test_key_with_trailing_newline_is_stripped(self):
+        client, stub = self.client([(200, {}, ok_body("x"))], api_key=KEY + "\r\n")
+        self.assertEqual(client.complete("p")[0].text, "x")
+        self.assertEqual(stub.requests[0]["headers"]["x-goog-api-key"], KEY)
+
+    def test_key_with_inner_whitespace_is_rejected_without_echo(self):
+        client, stub = self.client([], api_key="AB CD\x01")
+        with self.assertRaises(LLMError) as cm:
+            client.complete("p")
+        self.assertEqual(cm.exception.kind, "auth")
+        self.assertNotIn("AB CD", str(cm.exception))
+        self.assertEqual(stub.requests, [])
+
+    def test_server_hanging_up_is_a_network_error(self):
+        client, _ = self.client([("close", {}, None)])
+        with self.assertRaises(LLMError) as cm:
+            client.complete("p")
+        self.assertEqual(cm.exception.kind, "network")
+
+    def test_timeout_is_a_network_error(self):
+        client, _ = self.client([("sleep", {}, 0.5)], timeout_s=0.1)
+        with self.assertRaises(LLMError) as cm:
+            client.complete("p")
+        self.assertEqual(cm.exception.kind, "network")
+
+    def test_null_fields_in_the_response(self):
+        body = {"candidates": [{"content": {"parts": [{"text": "x"}]}}], "usageMetadata": None}
+        client, _ = self.client([(200, {}, body)])
+        self.assertEqual(client.complete("p")[0].prompt_tokens, None)
+        for bad in ({"candidates": None, "promptFeedback": None}, {"candidates": "x"},
+                    {"candidates": [None]}):
+            client, _ = self.client([(200, {}, bad)])
+            with self.assertRaises(LLMError) as cm:
+                client.complete("p")
+            self.assertEqual(cm.exception.kind, "bad_response")
+
+    def test_invalid_key_reported_as_400_is_auth(self):
+        body = {"error": {"code": 400, "message": "API key not valid. Please pass a valid API key.",
+                          "status": "INVALID_ARGUMENT", "details": [{"reason": "API_KEY_INVALID"}]}}
+        client, _ = self.client([(400, {}, body)])
+        with self.assertRaises(LLMError) as cm:
+            client.complete("p")
+        self.assertEqual(cm.exception.kind, "auth")
+
+    def test_any_400_with_several_candidates_falls_back_to_sequential(self):
+        client, stub = self.client([(400, {}, {"error": {"message": "Invalid argument."}}),
+                                    (200, {}, ok_body("a")), (200, {}, ok_body("b"))])
+        self.assertEqual([c.text for c in client.complete("p", n=2)], ["a", "b"])
+
+    def test_retry_after_wait_is_capped(self):
+        client, _ = self.client([(429, {"Retry-After": "3600"}, {}), (200, {}, ok_body("x"))])
+        with mock.patch("policyc.ai.llm_client.time.sleep") as sleep:
+            client.complete("p")
+        self.assertLessEqual(sleep.call_args[0][0], 60)
 
 
 class HelperTests(unittest.TestCase):

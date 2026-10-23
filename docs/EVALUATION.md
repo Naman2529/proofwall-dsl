@@ -29,20 +29,24 @@ python -m policyc evaluate --llm fake             # rehearsal with scripted answ
 python -m policyc evaluate --suite semantic       # objective 3 only, no key needed
 python -m policyc evaluate --limit 5              # first 5 tasks / policies per suite
 python -m policyc evaluate --samples 3            # optimizer asks for 3 proposals per attempt
-python -m policyc evaluate --fresh                # discard earlier raw results first
+python -m policyc evaluate --fresh                # discard earlier raw results of the suites being run
 ```
 
-Without `GEMINI_API_KEY` the command still runs the semantic suite and the
-compiler-only baseline, and says the AI suites were skipped.
+Without `GEMINI_API_KEY` the command still runs the semantic suite, says the AI
+suites were skipped, and reports the latest earlier AI results if there are any
+(otherwise the compiler-only baseline). Running a single suite never blanks the
+others: their latest results stay in the reports.
 
 ### Free-tier budget and resuming
 
 A full run asks the model at most 20 x 3 + 8 x 3 = 84 times (`--attempts 3`,
 `--samples 1`); with `--samples N` and Gemini's `candidateCount` the request count
 stays the same. Each finished task is saved immediately to
-`evaluation/results/raw/*.jsonl`. If the daily quota runs out, the affected tasks
-are recorded as **not run** (never as model failures) and the same command later
-picks up where it stopped. Records are keyed by task, model, settings and the
+`evaluation/results/raw/*.jsonl`. If the daily quota runs out (or the key is
+rejected), that task and every remaining one are recorded as **not run** without
+calling the model again (never as model failures), and the same command later
+picks up where it stopped. Waits requested by the server are capped at 60 s, and
+one progress line per task goes to stderr. Records are keyed by task, model, settings and the
 prompt fingerprint, so results from different settings are never mixed.
 
 ### Single runs for the demo
@@ -97,6 +101,11 @@ optimizer (the baseline) and the LLM optimizer.
 The baseline is valid by construction: its output is kept only when the verifier
 proves it equivalent.
 
+With `--mode non-weakening` a proposal may deny more than the original. Such
+proposals are marked stricter, never count as "improving", and lose to any
+equivalent proposal; `optimize` prints a warning when it accepts one. Rule
+reduction is only comparable to the baseline in the default `equivalent` mode.
+
 ### Classification of every AI output
 
 | Tier | Meaning |
@@ -121,7 +130,9 @@ proves it equivalent.
 | `*.png` | charts (with matplotlib): tiers, rule reduction, correctness, semantic |
 | `raw/*.jsonl` | the raw records the reports are built from |
 
-Every file from a `--llm fake` run starts with `FAKE - not real results`.
+Everything from a `--llm fake` run is marked `FAKE - not real results`: the text,
+CSV and Markdown files start with it, `run.json` has `"fake": true` and a
+`"banner"`, and every chart carries it as a heading.
 `evaluation/results/` is git-ignored so rehearsals never land in git; commit a real
 run deliberately:
 

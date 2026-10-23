@@ -56,7 +56,8 @@ def read_raw(path: str) -> List[dict]:
     if not os.path.exists(path):
         return []
     out = []
-    with open(path, encoding="utf-8") as f:
+    # errors="replace": a cut inside a multi-byte character must not stop every later run.
+    with open(path, encoding="utf-8", errors="replace") as f:
         for line in f:
             try:
                 out.append(json.loads(line))
@@ -67,8 +68,13 @@ def read_raw(path: str) -> List[dict]:
 
 def append_raw(path: str, record: dict) -> None:
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    lead = ""
+    if os.path.exists(path) and os.path.getsize(path):
+        with open(path, "rb") as f:
+            f.seek(-1, os.SEEK_END)
+            lead = "" if f.read(1) == b"\n" else "\n"   # finish a line cut off mid-write
     with open(path, "a", encoding="utf-8") as f:
-        f.write(json.dumps(record, ensure_ascii=False) + "\n")
+        f.write(lead + json.dumps(record, ensure_ascii=False) + "\n")
         f.flush()
 
 
@@ -76,6 +82,30 @@ def _done(path: str, cfg: RunConfig) -> Dict[str, dict]:
     key = cfg.key()
     return {r["task"]: r for r in read_raw(path)
             if r.get("config_key") == key and r.get("status") == "ok"}
+
+
+def latest_records(path: str) -> List[dict]:
+    """The newest record per task from the most recent settings in `path`, so a
+    report can show earlier results for suites that were not run this time."""
+    raw = read_raw(path)
+    if not raw:
+        return []
+    key = raw[-1].get("config_key")
+    latest: Dict[str, dict] = {}
+    for r in raw:
+        if r.get("config_key") == key and (r.get("status") == "ok" or r["task"] not in latest):
+            latest[r["task"]] = r
+    return list(latest.values())
+
+
+# Once the model reports one of these, later calls in the same run would fail too.
+_STOP_KINDS = ("quota", "auth")
+
+
+def _skipped(rec: dict, kind: str) -> dict:
+    rec.update(status="not_run", error_kind=kind,
+               error="not attempted: an earlier task in this run failed with %s" % kind)
+    return rec
 
 
 def _base(suite: str, task: str, cfg: RunConfig) -> dict:
@@ -117,14 +147,27 @@ def _gen_record(task, cfg: RunConfig, client) -> dict:
 
 
 def run_generation(client, cfg: RunConfig, raw_path: str, root: str = EVAL_ROOT,
-                   limit: Optional[int] = None) -> List[dict]:
+                   limit: Optional[int] = None, progress=None) -> List[dict]:
     tasks = load_generation_tasks(root)[:limit]
     done = _done(raw_path, cfg)
     records = []
-    for task in tasks:
+    stop = None
+    for i, task in enumerate(tasks, 1):
         if task.id not in done:
-            done[task.id] = _gen_record(task, cfg, client)
-            append_raw(raw_path, done[task.id])
+            if stop:
+                rec = _skipped(dict(_base("generation", task.id, cfg), difficulty=task.difficulty), stop)
+            else:
+                rec = _gen_record(task, cfg, client)
+                if rec["error_kind"] in _STOP_KINDS:
+                    stop = rec["error_kind"]
+            done[task.id] = rec
+            append_raw(raw_path, rec)
+            status = rec["status"] if rec["status"] != "ok" else (
+                "correct" if rec["verified"] else "compiles" if rec["ok"] else "failed")
+        else:
+            status = "already done"
+        if progress:
+            progress("generation %d/%d %s: %s" % (i, len(tasks), task.id, status))
         records.append(done[task.id])
     return records
 
@@ -141,9 +184,12 @@ def _baseline(path: str) -> dict:
             "tokens": 0}
 
 
-def _llm_section(source: str, cfg: RunConfig, client) -> dict:
+def _llm_section(source: str, cfg: RunConfig, client, stop: Optional[str] = None) -> dict:
     if client is None:
         return {"status": "skipped"}
+    if stop:
+        return {"status": "not_run", "error_kind": stop,
+                "error": "not attempted: an earlier policy in this run failed with %s" % stop}
     try:
         res = optimize_with_llm(source, llm=client, max_attempts=cfg.attempts,
                                 samples=cfg.samples, mode=cfg.mode)
@@ -151,7 +197,7 @@ def _llm_section(source: str, cfg: RunConfig, client) -> dict:
         return {"status": "not_run", "error_kind": e.kind, "error": str(e)}
     proposals = [{
         "attempt": p.attempt, "stage": p.stage, "tier": p.tier, "size": p.size,
-        "drops_deny_guard": p.drops_deny_guard, "note": p.note,
+        "drops_deny_guard": p.drops_deny_guard, "note": p.note, "stricter": p.stricter,
         "verifier": p.verification.summary() if p.verification else None,
         "tokens": (p.completion.prompt_tokens or 0) + (p.completion.output_tokens or 0)
         if p.completion.prompt_tokens is not None or p.completion.output_tokens is not None
@@ -168,21 +214,33 @@ def _llm_section(source: str, cfg: RunConfig, client) -> dict:
 
 
 def run_optimization(client, cfg: RunConfig, raw_path: str, root: str = EVAL_ROOT,
-                     limit: Optional[int] = None) -> List[dict]:
+                     limit: Optional[int] = None, progress=None) -> List[dict]:
     policies = load_optimization_policies(root)[:limit]
     done = _done(raw_path, cfg)
     records = []
-    for name, path in policies:
+    stop = None
+    for i, (name, path) in enumerate(policies, 1):
         if name not in done:
             with open(path, encoding="utf-8") as f:
                 source = f.read()
             rec = _base("optimization", name, cfg)
             rec["baseline"] = _baseline(path)
-            rec["llm"] = _llm_section(source, cfg, client)
+            rec["llm"] = _llm_section(source, cfg, client, stop)
             if rec["llm"]["status"] == "not_run":
                 rec.update(status="not_run", error_kind=rec["llm"]["error_kind"])
+                if rec["error_kind"] in _STOP_KINDS:
+                    stop = rec["error_kind"]
             done[name] = rec
-            append_raw(raw_path, rec)
+            if client is not None:   # baseline-only rows would hide earlier LLM results
+                append_raw(raw_path, rec)
+            llm = rec["llm"]
+            status = llm["status"] if llm["status"] != "ok" else (
+                "accepted %d -> %d IR rules" % (llm["rules_before"], llm["rules_after"])
+                if llm["accepted"] else "nothing accepted")
+        else:
+            status = "already done"
+        if progress:
+            progress("optimization %d/%d %s: %s" % (i, len(policies), name, status))
         records.append(done[name])
     return records
 
