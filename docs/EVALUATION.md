@@ -16,7 +16,7 @@ Optional settings:
 | Variable | Default | Meaning |
 |---|---|---|
 | `POLICYC_LLM` | `gemini` | provider: `gemini` or `fake` |
-| `POLICYC_MODEL` | `gemini-flash-lite-latest` | any Gemini model name or alias |
+| `POLICYC_MODEL` | `gemini-3.5-flash-lite` | any Gemini model name or alias |
 
 The key is read from the environment only. It is never printed, logged or written
 to any result file.

@@ -16,7 +16,7 @@ only through its public API (`compile_source`, `verifier.verify`,
 | `evaluation/` | Benchmark loaders, the resumable runner, reports and charts. See `docs/EVALUATION.md`. |
 
 Configuration: `GEMINI_API_KEY`, `POLICYC_LLM` (`gemini` or `fake`),
-`POLICYC_MODEL` (default `gemini-flash-lite-latest`).
+`POLICYC_MODEL` (default `gemini-3.5-flash-lite`).
 
 Rules for this folder (please keep them):
 

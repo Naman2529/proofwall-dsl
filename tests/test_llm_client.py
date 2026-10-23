@@ -74,12 +74,12 @@ class GeminiClientTests(unittest.TestCase):
         self.assertEqual((c.text, c.prompt_tokens, c.output_tokens), ("ALLOW a READ r", 10, 4))
         self.assertGreater(c.latency_s, 0)
         req = stub.requests[0]
-        self.assertTrue(req["path"].endswith("/models/gemini-flash-lite-latest:generateContent"))
+        self.assertTrue(req["path"].endswith("/models/gemini-3.5-flash-lite:generateContent"))
         self.assertEqual(req["headers"]["x-goog-api-key"], KEY)
         self.assertEqual(req["body"]["generationConfig"]["temperature"], 0.2)
         self.assertNotIn("candidateCount", req["body"]["generationConfig"])
         self.assertEqual(req["body"]["contents"][0]["parts"][0]["text"], "hello")
-        self.assertEqual(client.name, "gemini:gemini-flash-lite-latest")
+        self.assertEqual(client.name, "gemini:gemini-3.5-flash-lite")
 
     def test_model_from_environment(self):
         with mock.patch.dict(os.environ, {"POLICYC_MODEL": "gemini-x"}):
@@ -213,6 +213,18 @@ class ReviewFixTests(GeminiClientTests):
         client, stub = self.client([(400, {}, {"error": {"message": "Invalid argument."}}),
                                     (200, {}, ok_body("a")), (200, {}, ok_body("b"))])
         self.assertEqual([c.text for c in client.complete("p", n=2)], ["a", "b"])
+
+    def test_gemini_retry_delay_in_the_body_is_honoured(self):
+        details = {"error": {"code": 429, "message": "Quota exceeded for metric: "
+                             "generate_content_free_tier_requests, limit: 15. Please retry in 27.99s.",
+                             "details": [{"@type": "type.googleapis.com/google.rpc.RetryInfo",
+                                          "retryDelay": "28s"}]}}
+        message_only = {"error": {"code": 429, "message": "Please retry in 12.5s."}}
+        for body, expected in ((details, 28.0), (message_only, 12.5)):
+            client, _ = self.client([(429, {}, body), (200, {}, ok_body("x"))])
+            with mock.patch("policyc.ai.llm_client.time.sleep") as sleep:
+                client.complete("p")
+            self.assertAlmostEqual(sleep.call_args[0][0], expected, places=1)
 
     def test_retry_after_wait_is_capped(self):
         client, _ = self.client([(429, {"Retry-After": "3600"}, {}), (200, {}, ok_body("x"))])

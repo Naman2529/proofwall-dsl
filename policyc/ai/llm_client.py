@@ -20,6 +20,7 @@ from __future__ import annotations
 import http.client
 import json
 import os
+import re
 import time
 import urllib.error
 import urllib.request
@@ -31,7 +32,7 @@ try:
 except ImportError:  # Python 3.7
     Protocol = object
 
-DEFAULT_MODEL = "gemini-flash-lite-latest"
+DEFAULT_MODEL = "gemini-3.5-flash-lite"   # fast (about 1 s) and accurate on the benchmark
 DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 
 
@@ -170,7 +171,7 @@ class GeminiClient:
             except urllib.error.HTTPError as e:
                 message, body_text = self._error_info(e)
                 if e.code in (429, 503) and attempt < self.max_retries:
-                    time.sleep(self._wait(e, attempt))
+                    time.sleep(self._wait(e, attempt, body_text))
                     continue
                 if e.code in (429, 503):
                     raise LLMError("quota", "HTTP %d after %d retries: %s"
@@ -189,11 +190,16 @@ class GeminiClient:
             return self._parse(raw, n, time.perf_counter() - start)
         raise LLMError("quota", "retries exhausted")  # pragma: no cover
 
-    def _wait(self, e: urllib.error.HTTPError, attempt: int) -> float:
+    def _wait(self, e: urllib.error.HTTPError, attempt: int, body_text: str = "") -> float:
+        """Seconds to wait before retrying: Retry-After header, else Gemini's
+        RetryInfo.retryDelay or "retry in Ns" (per-minute free-tier limits),
+        else exponential backoff. Always capped at max_wait_s."""
         try:
             wait = float(e.headers.get("Retry-After"))
         except (TypeError, ValueError):
-            wait = self.backoff_s * (2 ** attempt)
+            m = (re.search(r'"retrydelay":\s*"([\d.]+)s"', body_text)
+                 or re.search(r"retry in ([\d.]+)\s*s", body_text))
+            wait = float(m.group(1)) if m else self.backoff_s * (2 ** attempt)
         return max(0.0, min(wait, self.max_wait_s))
 
     def _error_info(self, e: urllib.error.HTTPError):
