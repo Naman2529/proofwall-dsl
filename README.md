@@ -1,10 +1,10 @@
-# policyc: AI-Assisted Cybersecurity Policy DSL Compiler (Review 2 build)
+# policyc: AI-Assisted Cybersecurity Policy DSL Compiler
 
 BCSE307P Compiler Design Lab. Team: Naman Bhatia (24BDS0056), George Christian Mathew (24BCE2753), Yohan George (24BAI0356).
 
-This is the trusted half of the compiler: every stage that decides whether a policy is accepted. The two AI stages (LLM generator and LLM optimizer) plug into interfaces that already exist here, so the remaining work is mostly wiring an LLM into them.
+A compiler for a small access-control policy language, with two AI stages inside it: an LLM that turns English requirements into policies, and an LLM that proposes smaller policies. The LLM proposes, the compiler decides: every model output must compile, and every rewrite must be proven by the verifier, before it is accepted.
 
-Pure Python 3.8+. The compiler itself has no external libraries; the Z3 verifier in `policyc/verification/` needs `pip install -r requirements.txt`.
+Pure Python 3.8+. The compiler and the AI stages use only the standard library. Optional: `pip install -r requirements.txt` for the Z3 verifier, `matplotlib` for evaluation charts, and a `GEMINI_API_KEY` for the real model (everything also runs with `--llm fake`).
 
 ---
 
@@ -18,7 +18,10 @@ python -m policyc compile examples/optimizable.pol --emit ir --optimize
 python -m policyc verify examples/optimizable.pol examples/candidate_good.pol   # accepted
 python -m policyc verify examples/optimizable.pol examples/candidate_bad.pol    # rejected
 python -m policyc.verification verify examples/optimizable.pol examples/candidate_bad.pol   # Z3 verifier, see docs/VERIFICATION.md
-python -m unittest discover -s tests -v                          # 85 tests (53 without z3)
+python -m policyc generate --task g16 --llm fake                # English -> DSL (drop --llm fake with a key)
+python -m policyc optimize evaluation/optimization/o4_or_merge.pol --llm fake
+python -m policyc evaluate --llm fake                            # every Review 1 metric, see docs/EVALUATION.md
+python -m unittest discover -s tests -v                          # 176 tests (144 without z3)
 ```
 
 Other flags: `--emit tokens|ast|ir|json|all`, `-o out.json` to save the target policy, `--json-diagnostics` to print errors as JSON.
@@ -31,12 +34,12 @@ Other flags: `--emit tokens|ast|ir|json|all`, `-o out.json` to save the target p
 |---|---|
 | 1. DSL + formal grammar | Done. Grammar is LL(1) with no ambiguous productions. |
 | 2. Lexer + recursive-descent parser + AST, with line numbers and expected tokens | Done, plus panic-mode error recovery. |
-| 3. Security semantic analysis (duplicates, conflicts, undefined names, invalid action/resource pairs) | Done, plus redundancy, shadowing and unused-declaration checks. |
-| 4. LLM English to DSL with correction loop | Not started. The structured diagnostics it needs are done (`--json-diagnostics`). |
-| 5. IR + AI-suggested, compiler-verified optimization | IR, verifier and a compiler-only optimizer are done. The LLM that proposes rewrites is not started. |
-| 6. Target format + evaluation vs baseline | JSON code generator done. The compiler-only baseline exists. Evaluation not started. |
+| 3. Security semantic analysis (duplicates, conflicts, undefined names, invalid action/resource pairs) | Done, plus redundancy, shadowing and unused-declaration checks. Measured on 10 seeded policies (`evaluate --suite semantic`). |
+| 4. LLM English to DSL with correction loop | Done (`policyc/ai/generator.py`, `generate`). Gemini client, compiler errors fed back as JSON, measured on 20 tasks against reference policies. |
+| 5. IR + AI-suggested, compiler-verified optimization | Done (`policyc/ai/llm_optimizer.py`, `optimize`). Proposals must compile, keep declarations, be proven by the verifier and be smaller; counterexamples go back to the model. |
+| 6. Target format + evaluation vs baseline | Done (`evaluate`). Validity, rule reduction, tokens and latency vs the compiler-only baseline, plus the five-tier classification of every AI output. Real numbers need one run with a `GEMINI_API_KEY`. |
 
-So the review requirement of 25% is comfortably passed. Of the seven components in our "division of responsibility" table, the five trusted ones are working.
+All seven components of the Review 1 "division of responsibility" table are implemented: the two untrusted LLM stages and the five trusted compiler stages that judge them.
 
 ---
 
@@ -226,7 +229,10 @@ Every error and warning is an object with a code, phase, message, line, column, 
 3. `semantic_issues.pol`. "All of these lines parse. Semantic analysis catches the typo, the impossible action, the duplicate, the dead ALLOW, the conflict."
 4. `optimizable.pol --emit ir --optimize`. "9 rules down to 6, and the compiler proves it did not change any decision."
 5. `verify ... candidate_bad.pol`. "This is what will happen to a bad LLM suggestion. Rejected, with the exact request that would have been wrongly allowed."
-6. Run the tests: 85 passing.
+6. `generate --task g16`. "The model writes the policy; if it does not compile, the compiler's errors go back to it."
+7. `optimize evaluation/optimization/o4_or_merge.pol`. "Every proposal is compiled and proven before it is accepted; rejected ones get a counterexample."
+8. `evaluate` (or open `evaluation/results/results.md`). The Review 1 numbers.
+9. Run the tests: 176 passing.
 
 ---
 
@@ -251,17 +257,19 @@ Enumeration costs 2^attributes per request: 1 ms at 4 attributes, 6.2 s at 16, t
 With default deny, a DENY with no overlapping ALLOW technically changes nothing. But it is a guard rail: if someone later adds `ALLOW guest ACCESS reports`, the DENY still blocks it. Removing it would be "correct" today and dangerous tomorrow.
 
 **Where does the AI go?**
-Two places, both already prepared for. (1) Generator: the LLM turns English into DSL, we compile it, and if it fails we send the JSON diagnostics back and ask it to fix it. (2) Optimizer: the LLM proposes a rewritten policy, and we run exactly the `verify` command shown above. In both cases the LLM never decides anything on its own.
+Two places. (1) Generator: the LLM turns English into DSL, we compile it, and if it fails we send the JSON diagnostics back and ask it to fix it. (2) Optimizer: the LLM proposes rewritten policies, and each one must compile, keep the declarations, be proven by the verifier and be smaller. In both cases the LLM never decides anything on its own.
+
+**How do you know a generated policy means what was asked?**
+Each benchmark requirement has a hand-written reference policy. The verifier checks whether the generated policy is equivalent to it, so "compiles" and "correct" are measured separately.
 
 ---
 
-## 7. What is left (for the final review)
+## 7. Limitations
 
-The hooks for all three items already exist in `policyc/ai/`. Start with `policyc/ai/README.md`, which says what each file does today and what still needs doing.
-
-- LLM generator: English to DSL, with the compile, feedback, retry loop. Metrics: first-try parse rate, rate after correction, average retries.
-- LLM optimizer: send the IR, get a candidate policy back, verify it. Metrics: accepted vs rejected suggestions, rule reduction.
-- Evaluation script comparing the AI pipeline against the compiler-only optimizer that already exists here (validity, rule reduction, tokens, latency).
+- The real evaluation numbers need a Gemini API key; until then `--llm fake` produces rehearsal output marked `FAKE - not real results`.
+- The verifier proves the IR, not the JSON codegen, and treats attributes as independent booleans (see `docs/VERIFICATION.md`).
+- Semantic checks are pairwise: an ALLOW beaten only by two DENYs together, or a rule covered only by two others together, is not flagged. The evaluation keeps both as documented known misses.
+- Free-tier quotas are small; the evaluation resumes where it stopped (`docs/EVALUATION.md`).
 
 ---
 
@@ -277,16 +285,19 @@ policyc/
   compiler.py __main__.py diagnostics.py         compiler: driver, CLI, errors
   verifier.py                                    verify(): the entry point compiler, CLI and AI call
   verification/                                  security verification: Z3 non-weakening prover (docs/VERIFICATION.md)
-  ai/                                            AI part (hooks and loops ready, no model connected yet)
-    README.md          start here
-    llm_client.py      the one place a model gets called (stub)
+  ai/                                            AI part (see policyc/ai/README.md)
+    llm_client.py      the one place a model gets called (Gemini REST, fake)
+    prompts.py         every prompt template, fingerprinted
     generator.py       English -> DSL correction loop
-    llm_optimizer.py   propose -> verify -> retry loop
-    evaluation.py      baseline numbers done, AI comparison not started
+    llm_optimizer.py   propose -> compile -> verify -> select loop
+    metrics.py         policy size, output tiers, declaration and DENY-guard checks
+    cli.py             generate / optimize / evaluate commands
+    evaluation/        benchmark loaders, resumable runner, reports, charts
 examples/              the .pol files used in the demo
-tests/                 85 unittest tests (test_verification.py is skipped without z3-solver)
+evaluation/            benchmark data (generation, optimization, semantic); results/ is git-ignored
+tests/                 176 unittest tests (test_verification.py is skipped without z3-solver)
 benchmarks/            Z3 vs enumeration timing
-docs/                  VERIFICATION.md
+docs/                  VERIFICATION.md, EVALUATION.md, superpowers/ (design spec and plan)
 ```
 
 Ground rules for anyone adding to this:
@@ -294,3 +305,5 @@ Ground rules for anyone adding to this:
 - Every model output goes through `compile_source()`, and every proposed rewrite also goes through `verify()`. Nothing skips those two.
 - If you change a diagnostic code or the shape of `Diagnostic.to_dict()`, update the table in section 4, because the LLM correction loop reads those fields.
 - If you change `verify()` or `VerificationResult`, keep the field names. The compiler, the CLI and `ai/llm_optimizer.py` all use them.
+- If you change a prompt in `policyc/ai/prompts.py`, its fingerprint changes and the evaluation starts fresh records for it; that is intended.
+- Never put an API key in a file. `GEMINI_API_KEY` is read from the environment only.

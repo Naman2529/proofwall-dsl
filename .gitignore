@@ -20,3 +20,6 @@ ENV/
 Thumbs.db
 push_to_github.bat
 
+
+# Evaluation output (commit a real run with: git add -f evaluation/results)
+evaluation/results/
