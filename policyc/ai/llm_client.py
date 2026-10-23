@@ -221,11 +221,14 @@ def default_client(name: Optional[str] = None):
 
 
 def strip_code_fence(text: str) -> str:
-    """Models like to wrap code in ``` fences. Keep only the inside."""
+    """Models like to wrap code in ``` fences, sometimes with prose around
+    them. Keep only the inside of the first fenced block; text without a
+    fence is returned as is (the compiler will judge it)."""
     text = text.strip()
-    if text.startswith("```"):
-        lines = text.splitlines()[1:]
-        if lines and lines[-1].strip().startswith("```"):
-            lines = lines[:-1]
-        text = "\n".join(lines)
-    return text
+    lines = text.splitlines()
+    starts = [i for i, line in enumerate(lines) if line.strip().startswith("```")]
+    if not starts:
+        return text
+    body = lines[starts[0] + 1:]
+    end = next((i for i, line in enumerate(body) if line.strip().startswith("```")), None)
+    return "\n".join(body if end is None else body[:end])
