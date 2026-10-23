@@ -16,6 +16,10 @@ from .ast_nodes import And, Attr, Cond, Not, Or
 MAX_ATTRS = 16   # 2**16 rows is the most we are willing to enumerate
 
 
+class TooManyAttributes(ValueError):
+    """A truth table would need more than MAX_ATTRS attributes."""
+
+
 def attrs(c: Optional[Cond]) -> FrozenSet[str]:
     if c is None:
         return frozenset()
@@ -42,7 +46,7 @@ def assignments(names) -> Iterator[Dict[str, bool]]:
     """Every true/false assignment to `names`, in a fixed order (False first)."""
     names = sorted(names)
     if len(names) > MAX_ATTRS:
-        raise ValueError("too many attributes to enumerate (%d > %d)" % (len(names), MAX_ATTRS))
+        raise TooManyAttributes("too many attributes to enumerate (%d > %d)" % (len(names), MAX_ATTRS))
     for values in product((False, True), repeat=len(names)):
         yield dict(zip(names, values))
 

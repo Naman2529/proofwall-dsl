@@ -7,7 +7,8 @@ Four passes:
      (S001 undefined subject, S002 undefined resource, S003 unsupported action).
   3. Security checks between pairs of rules that share a subject and resource
      and have overlapping actions
-     (W101 duplicate, W102 redundant, W103 conflict, W104 shadowed ALLOW).
+     (W101 duplicate, W102 redundant, W103 conflict, W104 shadowed ALLOW;
+     W107 when a pair is too large to check by truth table).
   4. W106 unused declarations.
 
 Errors stop compilation. Warnings do not: under deny-overrides the policy
@@ -137,10 +138,15 @@ class SemanticAnalyzer:
                 pa, qa = self._actions(p), self._actions(q)
                 if not (pa & qa):
                     continue
-                if p.effect == q.effect:
-                    self._same_effect(p, pa, q, qa)
-                else:
-                    self._opposite_effect(p, pa, q, qa)
+                try:
+                    if p.effect == q.effect:
+                        self._same_effect(p, pa, q, qa)
+                    else:
+                        self._opposite_effect(p, pa, q, qa)
+                except logic.TooManyAttributes:
+                    self._warn("W107", "not checked against line %d for conflicts or redundancy: "
+                               "the two conditions use more than %d attributes"
+                               % (p.line, logic.MAX_ATTRS), q.line, 1)
 
     def _same_effect(self, p, pa, q, qa) -> None:
         if pa == qa and logic.canonical(p.condition) == logic.canonical(q.condition):
