@@ -1,0 +1,6 @@
+# Reference for g06 (easy). Never shown to the model.
+SUBJECT support
+RESOURCE tickets SUPPORTS READ, WRITE, EXECUTE
+
+ALLOW support READ tickets
+ALLOW support WRITE tickets

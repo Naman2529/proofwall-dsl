@@ -1,0 +1,7 @@
+# Reference for g11 (medium). Never shown to the model.
+SUBJECT admin, contractor
+RESOURCE billing SUPPORTS READ, WRITE, EXECUTE
+
+ALLOW admin ACCESS billing
+ALLOW contractor READ billing
+DENY contractor WRITE billing

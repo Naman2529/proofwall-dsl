@@ -1,0 +1,5 @@
+# Reference for g02 (easy). Never shown to the model.
+SUBJECT guest
+RESOURCE website SUPPORTS READ, WRITE
+
+ALLOW guest READ website

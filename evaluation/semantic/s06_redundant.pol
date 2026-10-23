@@ -1,0 +1,9 @@
+# Rules another rule already covers.
+SUBJECT admin, support
+RESOURCE tickets SUPPORTS READ, WRITE
+
+ALLOW admin ACCESS tickets
+ALLOW admin READ tickets                                      # expect: W102
+ALLOW support READ tickets WHEN on_shift
+ALLOW support READ tickets WHEN on_shift AND senior           # expect: W102
+ALLOW support WRITE tickets WHEN senior

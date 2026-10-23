@@ -1,0 +1,5 @@
+# Reference for g15 (hard). Never shown to the model.
+SUBJECT vendor
+RESOURCE shipping_api SUPPORTS READ, EXECUTE
+
+ALLOW vendor ACCESS shipping_api WHEN partner_network AND NOT maintenance_window

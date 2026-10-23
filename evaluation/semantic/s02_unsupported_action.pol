@@ -1,0 +1,10 @@
+# Actions a resource does not support.
+SUBJECT developer, ci_bot
+RESOURCE repo SUPPORTS READ, WRITE
+RESOURCE pipeline SUPPORTS EXECUTE
+
+ALLOW developer ACCESS repo
+ALLOW developer EXECUTE repo             # expect: S003
+ALLOW ci_bot EXECUTE pipeline
+ALLOW ci_bot WRITE pipeline              # expect: S003
+ALLOW ci_bot READ repo

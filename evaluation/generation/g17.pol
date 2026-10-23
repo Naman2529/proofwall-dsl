@@ -1,0 +1,6 @@
+# Reference for g17 (hard). Never shown to the model.
+SUBJECT engineer
+RESOURCE config_store SUPPORTS READ, WRITE
+
+ALLOW engineer ACCESS config_store
+DENY engineer WRITE config_store WHEN change_freeze AND NOT on_call

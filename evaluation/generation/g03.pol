@@ -1,0 +1,6 @@
+# Reference for g03 (easy). Never shown to the model.
+SUBJECT intern
+RESOURCE payroll SUPPORTS READ, WRITE
+
+ALLOW intern READ payroll
+DENY intern WRITE payroll

@@ -1,0 +1,10 @@
+# Needs a rewrite: rules covering every supported action can become one ACCESS rule.
+SUBJECT developer, release_bot
+RESOURCE repo SUPPORTS READ, WRITE
+RESOURCE pipeline SUPPORTS READ, EXECUTE
+
+ALLOW developer READ repo
+ALLOW developer WRITE repo
+ALLOW release_bot READ pipeline WHEN signed
+ALLOW release_bot EXECUTE pipeline WHEN signed
+ALLOW developer READ pipeline

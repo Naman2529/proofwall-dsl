@@ -1,0 +1,5 @@
+# Reference for g04 (easy). Never shown to the model.
+SUBJECT backup_service
+RESOURCE snapshot_job SUPPORTS EXECUTE
+
+ALLOW backup_service EXECUTE snapshot_job
