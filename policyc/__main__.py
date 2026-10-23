@@ -2,9 +2,10 @@
 
     python -m policyc compile FILE [--emit tokens|ast|ir|json|all] [--optimize]
                                    [-o OUT.json] [--json-diagnostics]
-    python -m policyc verify ORIGINAL CANDIDATE
+    python -m policyc verify ORIGINAL CANDIDATE [--mode equivalent|non-weakening]
+                                                [--backend layered|z3|enumerate|differential]
 
-Exit codes: 0 success / verified, 1 compile errors / rejected, 2 bad usage or I/O.
+Exit codes: 0 success / proven, 1 compile errors / rejected / unproven, 2 bad usage or I/O.
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ import sys
 from . import ast_nodes
 from .codegen import generate
 from .compiler import CompileResult, compile_file
+from .verification.layered import BACKENDS
 from .verifier import verify
 
 
@@ -63,15 +65,15 @@ def _cmd_compile(args) -> int:
         if res.optimization is not None:
             _section("OPTIMIZER")
             print(res.optimization.summary())
-            print(res.verification)
+            print(res.verification.summary())
             if res.verification.equivalent:
                 _section("OPTIMIZED IR")
                 print(res.final_ir.dump())
             else:
                 print("optimized IR rejected, keeping the original")
     elif res.optimization is not None:
-        print("%s | %s" % (res.optimization.summary().splitlines()[0], res.verification),
-              file=sys.stderr)
+        print("%s | %s" % (res.optimization.summary().splitlines()[0],
+                           res.verification.summary()), file=sys.stderr)
     if show_all or emit == "json":
         if show_all:
             _section("TARGET JSON")
@@ -101,9 +103,9 @@ def _cmd_verify(args) -> int:
     original, candidate = results
     print("original:  %d IR rules" % len(original.ir.rules))
     print("candidate: %d IR rules" % len(candidate.ir.rules))
-    result = verify(original.ir, candidate.ir)
-    print(result)
-    return 0 if result.equivalent else 1
+    result = verify(original.ir, candidate.ir, mode=args.mode, backend=args.backend)
+    print(result.summary())
+    return 0 if result.proven else 1
 
 
 def main(argv=None) -> int:
@@ -121,9 +123,12 @@ def main(argv=None) -> int:
                    help="print errors and warnings as JSON (for the LLM correction loop)")
     c.set_defaults(func=_cmd_compile)
 
-    v = sub.add_parser("verify", help="check a candidate policy makes the same decisions")
+    v = sub.add_parser("verify", help="check a candidate policy against the original")
     v.add_argument("original")
     v.add_argument("candidate")
+    v.add_argument("--mode", choices=["equivalent", "non-weakening"], default="equivalent",
+                   help="equivalent: same decisions (default); non-weakening: never allows more")
+    v.add_argument("--backend", choices=BACKENDS, default="layered")
     v.set_defaults(func=_cmd_verify)
 
     args = ap.parse_args(argv)

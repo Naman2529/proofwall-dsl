@@ -8,8 +8,18 @@ import argparse
 import json
 import sys
 
+from ..compiler import compile_file
 from .layered import BACKENDS, verify_candidate
-from .loader import PolicyLoadError, load_policy
+from .loader import PolicyLoadError
+
+
+def load_policy(path: str):
+    """Compile with the real front end so the verifier sees exactly the compiler's IR."""
+    res = compile_file(path)
+    if not res.ok:
+        raise PolicyLoadError("%s does not compile:\n%s" % (
+            path, "\n".join(d.format(path, res.source) for d in res.errors)))
+    return res.ir
 
 
 def main(argv=None) -> int:

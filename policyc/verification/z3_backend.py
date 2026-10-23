@@ -23,7 +23,10 @@ from __future__ import annotations
 import time
 from typing import Dict, List, Optional, Tuple
 
-import z3
+try:
+    import z3
+except ImportError:  # optional: without it verify_z3() fails closed and layered falls back
+    z3 = None
 
 from .model import (Key, Rule, Tree, decide_rules, group_by_request, normalize,
                     request_attrs, signature)
@@ -70,6 +73,10 @@ def verify_z3(original, candidate, mode: str = "non-weakening", timeout_ms: int 
     orig = group_by_request(normalize(original, cond_adapter))
     cand = group_by_request(normalize(candidate, cond_adapter))
     keys: List[Key] = sorted(set(orig) | set(cand))
+    if z3 is None:
+        return VerificationResult(proven=False, mode=mode, backend="z3", layer="z3",
+                                  reason="z3-solver is not installed (pip install -r requirements.txt)",
+                                  elapsed_s=time.perf_counter() - t0)
 
     cexs: List[Counterexample] = []
     unknown: List[Key] = []

@@ -18,7 +18,7 @@ python -m policyc compile examples/optimizable.pol --emit ir --optimize
 python -m policyc verify examples/optimizable.pol examples/candidate_good.pol   # accepted
 python -m policyc verify examples/optimizable.pol examples/candidate_bad.pol    # rejected
 python -m policyc.verification verify examples/optimizable.pol examples/candidate_bad.pol   # Z3 verifier, see docs/VERIFICATION.md
-python -m unittest discover -s tests -v                          # 78 tests
+python -m unittest discover -s tests -v                          # 85 tests (53 without z3)
 ```
 
 Other flags: `--emit tokens|ast|ir|json|all`, `-o out.json` to save the target policy, `--json-diagnostics` to print errors as JSON.
@@ -170,7 +170,7 @@ This is the core idea of the project, already working without the AI.
 
 **The optimizer** (compiler-only baseline) removes rules that cannot change any decision: exact duplicates, ALLOWs that an unconditional DENY always beats, and conditional rules that an unconditional rule of the same effect already covers. It never removes explicit DENY rules, on purpose, because they protect you if someone adds a broader ALLOW later.
 
-**The verifier** answers: do these two IRs make the same decision for every possible request? The DSL is small, so the set of possible requests is finite: every subject, every resource, every action it supports, and every true/false combination of the attributes used in that request's rules. The verifier checks all of them. If any decision differs, it rejects and prints a concrete counterexample.
+**The verifier** answers: do these two IRs make the same decision for every possible request? `verifier.verify()` hands the question to `policyc/verification/` (see `docs/VERIFICATION.md`): a cheap randomized differential test first, then a Z3 proof per (subject, action, resource), or exact enumeration of every true/false combination of the attributes if `z3-solver` is not installed. If any decision differs, it rejects and prints a concrete counterexample. Anything short of a full proof (timeout, enumeration cap) is also a rejection. `--mode non-weakening` relaxes "same decisions" to "never allows more".
 
 The key design point: **the optimizer's output is not trusted.** `compile()` runs the verifier on (original, optimized) and only keeps the optimized version if it is proven equivalent. This is called translation validation (Necula, PLDI 2000, paper 12 in our survey). Later, the LLM optimizer's suggestions go through the exact same gate. The LLM proposes, the verifier decides.
 
@@ -178,15 +178,18 @@ Demo:
 
 ```bash
 python -m policyc compile examples/optimizable.pol --emit ir --optimize
-# 9 IR rules -> 6, "VERIFIED: same decision in all 14 cases checked"
+# 9 IR rules -> 6, "PROVEN (equivalent, z3 (after differential)): 6 requests, ..."
 
 python -m policyc verify examples/optimizable.pol examples/candidate_bad.pol
-# REJECTED: analyst READ reports (authenticated=False): original says DENY, candidate says ALLOW
+# REJECTED (equivalent, differential): analyst READ reports (authenticated=False): original says DENY, candidate says ALLOW
+
+python -m policyc verify examples/optimizable.pol examples/candidate_stricter.pol --mode non-weakening
+# PROVEN: stricter is allowed in this mode, rejected in the default one
 ```
 
 `candidate_bad.pol` is the story to tell: it looks like a harmless cleanup, but it dropped `WHEN authenticated`, which quietly lets unauthenticated analysts read reports. This is exactly the kind of subtle, unsafe change an LLM could make, and the verifier catches it with a specific example.
 
-Why 14 cases? 3 subjects x 4 (resource, action) pairs = 12 requests. Two of them have one attribute each (mfa, authenticated), so those two are checked twice (true and false). 10 + 4 = 14.
+Why 6 requests? Only (subject, action, resource) triples that some rule mentions can differ; every other request is DENY in both policies by default. Requests whose rule sets are identical in both policies are skipped too, since they provably decide the same.
 
 ### Phase 6: Code generation (`codegen.py`)
 
@@ -212,6 +215,7 @@ Every error and warning is an object with a code, phase, message, line, column, 
 | W103 | semantic | ALLOW/DENY conflict |
 | W104 | semantic | ALLOW that can never take effect |
 | W106 | semantic | declared but never used |
+| W107 | semantic | pair of rules too large (over 16 attributes) to check for W102/W103 |
 
 ---
 
@@ -222,7 +226,7 @@ Every error and warning is an object with a code, phase, message, line, column, 
 3. `semantic_issues.pol`. "All of these lines parse. Semantic analysis catches the typo, the impossible action, the duplicate, the dead ALLOW, the conflict."
 4. `optimizable.pol --emit ir --optimize`. "9 rules down to 6, and the compiler proves it did not change any decision."
 5. `verify ... candidate_bad.pol`. "This is what will happen to a bad LLM suggestion. Rejected, with the exact request that would have been wrongly allowed."
-6. Run the tests: 78 passing.
+6. Run the tests: 85 passing.
 
 ---
 
@@ -238,10 +242,10 @@ No. Every statement starts with a unique keyword, and the condition grammar enco
 Under deny-overrides a conflicting policy still has one clear meaning: DENY wins. Real policies often use a broad ALLOW plus a narrow DENY on purpose. We flag it so a human can check, but we do not block it. Undefined names and impossible actions are errors because the policy is meaningless with them.
 
 **How do you know the verifier is correct?**
-It does not approximate. The space of requests is finite, and it checks every single one using the same `decide()` function that defines the policy's meaning. If it says equivalent, there is no request where they differ. If it says not equivalent, it shows you one. The only limit is size, which is why it only enumerates attributes that actually appear in the rules for each request (capped at 16 per request).
+It does not approximate. The space of requests is finite, and Z3 encodes deny-overrides exactly for each one; every counterexample Z3 finds is replayed through plain Python before it is reported. Z3 and exact enumeration are cross-checked against an independent brute force on 400 random policy pairs, and `tests/test_integration.py` checks the verifier reads the compiler's IR the same way as the source. If it says proven, there is no request where they differ. If not, it shows you one, or says why it could not finish (and rejects).
 
 **Does it scale?**
-Cost grows with (subjects x resource-actions x 2^attributes-per-request). For the policy sizes in this project that is tiny (14 cases above, milliseconds). For very large policies the next step would be an SMT solver, like Zelkova and Cedar do (papers 16 and 18).
+Enumeration costs 2^attributes per request: 1 ms at 4 attributes, 6.2 s at 16, then it refuses. Z3 stays around 25 to 45 ms up to 48 attributes (`benchmarks/bench_verifiers.py`), the same approach as Zelkova and Cedar (papers 16 and 18).
 
 **Why does the optimizer keep explicit DENY rules?**
 With default deny, a DENY with no overlapping ALLOW technically changes nothing. But it is a guard rail: if someone later adds `ALLOW guest ACCESS reports`, the DENY still blocks it. Removing it would be "correct" today and dangerous tomorrow.
@@ -271,7 +275,7 @@ policyc/
   semantic.py logic.py                           compiler: phase 3
   ir.py optimizer.py codegen.py                  compiler: phases 4, 5a, 6
   compiler.py __main__.py diagnostics.py         compiler: driver, CLI, errors
-  verifier.py                                    security verification (working baseline, see note at top of file)
+  verifier.py                                    verify(): the entry point compiler, CLI and AI call
   verification/                                  security verification: Z3 non-weakening prover (docs/VERIFICATION.md)
   ai/                                            AI part (hooks and loops ready, no model connected yet)
     README.md          start here
@@ -280,7 +284,7 @@ policyc/
     llm_optimizer.py   propose -> verify -> retry loop
     evaluation.py      baseline numbers done, AI comparison not started
 examples/              the .pol files used in the demo
-tests/                 78 unittest tests (test_verification.py and test_integration.py need z3-solver)
+tests/                 85 unittest tests (test_verification.py is skipped without z3-solver)
 benchmarks/            Z3 vs enumeration timing
 docs/                  VERIFICATION.md
 ```

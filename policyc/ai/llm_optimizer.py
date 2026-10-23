@@ -4,8 +4,9 @@ STATUS: loop implemented; prompt is a placeholder and no real model is
 connected (see llm_client.py).
 
 The model proposes a rewritten policy. The compiler checks it compiles, then
-verifier.verify() checks it makes the same decision for every request. Only
-then is it accepted. On rejection the concrete counterexample is sent back.
+verifier.verify() must prove it (mode "equivalent" by default: the same
+decision for every request; "non-weakening" also accepts stricter rewrites).
+Only a full proof is accepted. On rejection the counterexamples are sent back.
 If every attempt fails we keep the original: the AI can make a policy
 smaller, never different.
 
@@ -34,7 +35,7 @@ class Proposal:
 
     @property
     def accepted(self) -> bool:
-        return self.verification is not None and self.verification.equivalent
+        return self.verification is not None and self.verification.proven
 
 
 @dataclass
@@ -66,7 +67,7 @@ def build_optimize_prompt(source: str, ir_dump: str, feedback: Optional[str]) ->
 
 
 def optimize_with_llm(source: str, llm: Optional[LLMClient] = None,
-                      max_attempts: int = 3) -> OptimizeResult:
+                      max_attempts: int = 3, mode: str = "equivalent") -> OptimizeResult:
     original = compile_source(source)
     if not original.ok:
         raise ValueError("the original policy does not compile")
@@ -81,9 +82,9 @@ def optimize_with_llm(source: str, llm: Optional[LLMClient] = None,
             feedback = "it does not compile: " + "; ".join(
                 "line %d: %s" % (d.line, d.message) for d in compiled.errors)
             continue
-        verdict = verify(original.ir, compiled.ir)
+        verdict = verify(original.ir, compiled.ir, mode=mode)
         out.proposals.append(Proposal(dsl, compiled, verdict))
-        if verdict.equivalent:
+        if verdict.proven:
             break
-        feedback = str(verdict.counterexample)
+        feedback = verdict.feedback()
     return out
