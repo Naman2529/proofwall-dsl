@@ -4,7 +4,7 @@ BCSE307P Compiler Design Lab. Team: Naman Bhatia (24BDS0056), George Christian M
 
 This is the trusted half of the compiler: every stage that decides whether a policy is accepted. The two AI stages (LLM generator and LLM optimizer) plug into interfaces that already exist here, so the remaining work is mostly wiring an LLM into them.
 
-Pure Python 3.8+, no external libraries.
+Pure Python 3.8+. The compiler itself has no external libraries; the Z3 verifier in `policyc/verification/` needs `pip install -r requirements.txt`.
 
 ---
 
@@ -17,7 +17,8 @@ python -m policyc compile examples/semantic_issues.pol           # semantic erro
 python -m policyc compile examples/optimizable.pol --emit ir --optimize
 python -m policyc verify examples/optimizable.pol examples/candidate_good.pol   # accepted
 python -m policyc verify examples/optimizable.pol examples/candidate_bad.pol    # rejected
-python -m unittest discover -s tests -v                          # 40 tests
+python -m policyc.verification verify examples/optimizable.pol examples/candidate_bad.pol   # Z3 verifier, see docs/VERIFICATION.md
+python -m unittest discover -s tests -v                          # 78 tests
 ```
 
 Other flags: `--emit tokens|ast|ir|json|all`, `-o out.json` to save the target policy, `--json-diagnostics` to print errors as JSON.
@@ -221,7 +222,7 @@ Every error and warning is an object with a code, phase, message, line, column, 
 3. `semantic_issues.pol`. "All of these lines parse. Semantic analysis catches the typo, the impossible action, the duplicate, the dead ALLOW, the conflict."
 4. `optimizable.pol --emit ir --optimize`. "9 rules down to 6, and the compiler proves it did not change any decision."
 5. `verify ... candidate_bad.pol`. "This is what will happen to a bad LLM suggestion. Rejected, with the exact request that would have been wrongly allowed."
-6. Run the tests: 40 passing.
+6. Run the tests: 78 passing.
 
 ---
 
@@ -271,6 +272,7 @@ policyc/
   ir.py optimizer.py codegen.py                  compiler: phases 4, 5a, 6
   compiler.py __main__.py diagnostics.py         compiler: driver, CLI, errors
   verifier.py                                    security verification (working baseline, see note at top of file)
+  verification/                                  security verification: Z3 non-weakening prover (docs/VERIFICATION.md)
   ai/                                            AI part (hooks and loops ready, no model connected yet)
     README.md          start here
     llm_client.py      the one place a model gets called (stub)
@@ -278,7 +280,9 @@ policyc/
     llm_optimizer.py   propose -> verify -> retry loop
     evaluation.py      baseline numbers done, AI comparison not started
 examples/              the .pol files used in the demo
-tests/                 40 unittest tests
+tests/                 78 unittest tests (test_verification.py and test_integration.py need z3-solver)
+benchmarks/            Z3 vs enumeration timing
+docs/                  VERIFICATION.md
 ```
 
 Ground rules for anyone adding to this:
