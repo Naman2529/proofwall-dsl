@@ -225,3 +225,14 @@ def add_commands(sub) -> None:
     e.add_argument("--out", default=os.path.join("evaluation", "results"))
     e.add_argument("--fresh", action="store_true", help="discard earlier raw results first")
     e.set_defaults(func=cmd_evaluate)
+
+    w = sub.add_parser("gui", help="open the demo GUI in the browser (localhost only)")
+    w.add_argument("--port", type=int, default=8765)
+    w.add_argument("--no-browser", action="store_true", help="do not open a browser window")
+    w.add_argument("--llm", choices=LLMS, help="default model (gemini if GEMINI_API_KEY is set)")
+    w.set_defaults(func=cmd_gui)
+
+
+def cmd_gui(args) -> int:
+    from ..gui import server
+    return server.serve(port=args.port, open_browser=not args.no_browser, llm=args.llm)

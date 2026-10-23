@@ -18,10 +18,11 @@ python -m policyc compile examples/optimizable.pol --emit ir --optimize
 python -m policyc verify examples/optimizable.pol examples/candidate_good.pol   # accepted
 python -m policyc verify examples/optimizable.pol examples/candidate_bad.pol    # rejected
 python -m policyc.verification verify examples/optimizable.pol examples/candidate_bad.pol   # Z3 verifier, see docs/VERIFICATION.md
+python -m policyc gui                                           # the demo GUI in your browser (localhost only)
 python -m policyc generate --task g16 --llm fake                # English -> DSL (drop --llm fake with a key)
 python -m policyc optimize evaluation/optimization/o4_or_merge.pol --llm fake
 python -m policyc evaluate --llm fake                            # every Review 1 metric, see docs/EVALUATION.md
-python -m unittest discover -s tests -v                          # 204 tests (172 without z3)
+python -m unittest discover -s tests -v                          # 222 tests (190 without z3)
 ```
 
 Other flags: `--emit tokens|ast|ir|json|all`, `-o out.json` to save the target policy, `--json-diagnostics` to print errors as JSON.
@@ -222,17 +223,21 @@ Every error and warning is an object with a code, phase, message, line, column, 
 
 ---
 
-## 5. Suggested demo order (about 5 minutes)
+## 5. Suggested demo order (about 6 minutes, in the GUI)
 
-1. `--emit all` on `valid.pol`. Scroll through tokens, AST, IR, JSON. "This is one policy going through every phase."
-2. `syntax_errors.pol`. Point at FLY, the missing resource, the missing `)`, the `;`, and the lowercase `allow` hint. "Five errors, one run, because of panic-mode recovery."
-3. `semantic_issues.pol`. "All of these lines parse. Semantic analysis catches the typo, the impossible action, the duplicate, the dead ALLOW, the conflict."
-4. `optimizable.pol --emit ir --optimize`. "9 rules down to 6, and the compiler proves it did not change any decision."
-5. `verify ... candidate_bad.pol`. "This is what will happen to a bad LLM suggestion. Rejected, with the exact request that would have been wrongly allowed."
-6. `generate --task g16`. "The model writes the policy; if it does not compile, the compiler's errors go back to it."
-7. `optimize evaluation/optimization/o4_or_merge.pol`. "Every proposal is compiled and proven before it is accepted; rejected ones get a counterexample."
-8. `evaluate` (or open `evaluation/results/results.md`). The Review 1 numbers.
-9. Run the tests: 204 passing.
+Before the demo: `pip install -r requirements.txt matplotlib`, set `GEMINI_API_KEY`, run `python -m policyc evaluate` once (for the Results tab), then `python -m policyc gui`. The header toggle switches between Gemini and the offline Fake model.
+
+1. **Compile** `examples/valid.pol`. Click through Lexer, Parser, Semantic, IR, Optimizer, Verifier, Codegen. "One policy through every phase."
+2. **Compile** `examples/syntax_errors.pol`. Five errors in one run (panic-mode recovery); click one to jump to its line.
+3. **Compile** `examples/semantic_issues.pol`. Everything parses; semantic analysis catches the typo, the impossible action, the duplicate, the dead ALLOW, the conflict.
+4. **Compile** `examples/optimizable.pol`, Verifier step. "9 rules down to 6, and the compiler proves no decision changed."
+5. **Generate** task g16 with Gemini: the policy, proven equivalent to the hand-written reference, in about a second. Then switch to **Fake** and generate g01 to show the correction loop: a broken first answer, the compiler's errors fed back, the fix.
+6. **Optimize** `o4_or_merge.pol` with Gemini: compiler-only 5 -> 5 rules, LLM 5 -> 3, proven equivalent, with the diff.
+7. **Verify**, preset "Dropped a condition": REJECTED, with the exact request that would have been wrongly allowed. "This is what happens to an unsafe AI suggestion."
+8. **Results**: the Review 1 numbers and charts from the real run.
+9. Run the tests: 222 passing.
+
+The same steps work from the command line (`compile`, `verify`, `generate`, `optimize`, `evaluate`).
 
 ---
 
@@ -291,11 +296,12 @@ policyc/
     generator.py       English -> DSL correction loop
     llm_optimizer.py   propose -> compile -> verify -> select loop
     metrics.py         policy size, output tiers, declaration and DENY-guard checks
-    cli.py             generate / optimize / evaluate commands
+    cli.py             generate / optimize / evaluate / gui commands
+  gui/                                           demo web app: server.py (JSON API, localhost only) + static/
     evaluation/        benchmark loaders, resumable runner, reports, charts
 examples/              the .pol files used in the demo
 evaluation/            benchmark data (generation, optimization, semantic); results/ is git-ignored
-tests/                 204 unittest tests (test_verification.py is skipped without z3-solver)
+tests/                 222 unittest tests (test_verification.py is skipped without z3-solver)
 benchmarks/            Z3 vs enumeration timing
 docs/                  VERIFICATION.md, EVALUATION.md, superpowers/ (design spec and plan)
 ```
