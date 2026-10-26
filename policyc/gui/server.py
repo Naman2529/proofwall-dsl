@@ -351,7 +351,7 @@ def serve(port: int = 8765, open_browser: bool = True, llm: Optional[str] = None
     app = server.RequestHandlerClass.app
     print("policyc GUI running at %s  (model: %s%s)  Ctrl+C to stop" % (
         url, app.default_llm, "" if app.default_llm == "fake" else
-        " " + (os.environ.get("POLICYC_MODEL") or DEFAULT_MODEL)))
+        " " + (os.environ.get("POLICYC_MODEL") or DEFAULT_MODEL)), flush=True)
     if open_browser:
         import webbrowser
         webbrowser.open(url)

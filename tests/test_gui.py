@@ -207,6 +207,32 @@ class GuiServerTests(unittest.TestCase):
 
 
 class GuiCommandTests(unittest.TestCase):
+    def test_startup_line_is_flushed_immediately(self):
+        import io
+        from policyc.gui import server as gui
+
+        class Recorder(io.StringIO):
+            flushed_text = ""
+
+            def flush(self):
+                Recorder.flushed_text = self.getvalue()
+
+        class StopAtOnce:
+            server_address = ("127.0.0.1", 8765)
+            RequestHandlerClass = type("H", (), {"app": gui.App("fake")})
+
+            def serve_forever(self, poll_interval=0.5):
+                raise KeyboardInterrupt
+
+            def server_close(self):
+                pass
+
+        out = Recorder()
+        with mock.patch.object(gui, "make_server", lambda **kw: StopAtOnce()), \
+                mock.patch("sys.stdout", out):
+            self.assertEqual(gui.serve(open_browser=False, llm="fake"), 0)
+        self.assertIn("http://127.0.0.1:8765/", Recorder.flushed_text)
+
     def test_gui_command_starts_the_server(self):
         from policyc.__main__ import main
         with mock.patch("policyc.gui.server.serve", return_value=0) as serve:
