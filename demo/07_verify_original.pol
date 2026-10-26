@@ -1,0 +1,11 @@
+# Objective 5 (verifier): a bank policy. The three 07_verify_* candidates are
+# rewrites of it: one safe, one unsafe, one stricter.
+SUBJECT teller, manager, customer
+RESOURCE accounts SUPPORTS READ, WRITE
+RESOURCE vault    SUPPORTS EXECUTE
+
+ALLOW teller READ accounts WHEN on_shift
+ALLOW manager ACCESS accounts WHEN mfa
+ALLOW manager EXECUTE vault WHEN mfa AND dual_control
+ALLOW customer READ accounts WHEN owns_account
+DENY customer WRITE accounts

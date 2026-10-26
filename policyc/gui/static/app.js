@@ -320,6 +320,9 @@ async function runOptimize() {
 
 const verOrig = makeEditor($("#ver-original")), verCand = makeEditor($("#ver-candidate"));
 const PRESETS = [
+  ["Bank, safe: reordered rules (demo/07_verify_safe)", "demo/07_verify_original.pol", "demo/07_verify_safe.pol"],
+  ["Bank, unsafe: dropped dual control (demo/07_verify_unsafe)", "demo/07_verify_original.pol", "demo/07_verify_unsafe.pol"],
+  ["Bank, stricter: tellers need the branch network (demo/07_verify_stricter)", "demo/07_verify_original.pol", "demo/07_verify_stricter.pol"],
   ["Safe cleanup: optimizable vs candidate_good", "examples/optimizable.pol", "examples/candidate_good.pol"],
   ["Dropped a condition: optimizable vs candidate_bad", "examples/optimizable.pol", "examples/candidate_bad.pol"],
   ["Deleted a DENY guard: optimizable vs candidate_drops_deny", "examples/optimizable.pol", "examples/candidate_drops_deny.pol"],
@@ -433,10 +436,11 @@ async function boot() {
   setLlm(state.status.key_set ? state.status.llm : "fake");
 
   const sources = state.status.sources;
-  // Demo examples first, then the benchmark files.
-  const examples = sources.filter((s) => s.startsWith("examples/"))
+  // Demo examples first, then the original examples, then the benchmark files.
+  const examples = sources.filter((s) => s.startsWith("demo/"))
+    .concat(sources.filter((s) => s.startsWith("examples/")))
     .concat(sources.filter((s) => s.startsWith("evaluation/") && !s.startsWith("evaluation/generation/")));
-  fillSelect($("#compile-source"), examples, "examples/valid.pol");
+  fillSelect($("#compile-source"), examples, "demo/01_full_language.pol");
   $("#compile-source").onchange = async () => { compileEd.value = await loadSource($("#compile-source").value); runCompile(); };
   compileEd.value = await loadSource($("#compile-source").value);
   $("#compile-run").onclick = runCompile;
@@ -446,12 +450,13 @@ async function boot() {
 
   $("#gen-task").innerHTML = `<option value="">Custom requirement…</option>` + state.status.tasks.map((t) =>
     `<option value="${t.id}">${t.id} (${t.difficulty}): ${esc(t.english.slice(0, 60))}${t.english.length > 60 ? "…" : ""}</option>`).join("");
-  $("#gen-task").value = "g16"; showTask("g16");
+  $("#gen-task").value = "d01"; showTask("d01");
   $("#gen-task").onchange = () => showTask($("#gen-task").value);
   $("#gen-run").onclick = runGenerate;
 
-  const optChoices = sources.filter((s) => s.startsWith("evaluation/optimization/") || s === "examples/optimizable.pol");
-  fillSelect($("#opt-source"), optChoices, "evaluation/optimization/o4_or_merge.pol");
+  const optChoices = ["demo/06_optimize_llm.pol", "demo/05_optimize_baseline.pol"]
+    .concat(sources.filter((s) => s.startsWith("evaluation/optimization/") || s === "examples/optimizable.pol"));
+  fillSelect($("#opt-source"), optChoices, "demo/06_optimize_llm.pol");
   $("#opt-source").onchange = async () => { optEd.value = await loadSource($("#opt-source").value); $("#opt-result").innerHTML = ""; };
   optEd.value = await loadSource($("#opt-source").value);
   $("#opt-run").onclick = runOptimize;

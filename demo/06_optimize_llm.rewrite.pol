@@ -1,0 +1,11 @@
+# A hand-written optimal rewrite of 06_optimize_llm.pol (what a good LLM answer
+# looks like). The fake model answers with it; the verifier must still prove it.
+SUBJECT engineer, contractor, analyst
+RESOURCE deploy_api SUPPORTS EXECUTE
+RESOURCE config     SUPPORTS READ, WRITE
+RESOURCE metrics    SUPPORTS READ
+
+ALLOW engineer EXECUTE deploy_api WHEN on_call OR change_approved
+ALLOW engineer ACCESS config
+ALLOW contractor READ metrics WHEN on_vpn
+ALLOW analyst READ metrics

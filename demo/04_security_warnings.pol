@@ -1,0 +1,15 @@
+# Objective 3 (warnings): compiles, but has the security smells the checker
+# was built to catch: duplicates, redundancy, conflicts, dead rules, unused names.
+SUBJECT admin, analyst, intern, vendor, auditor          # expect: W106  auditor is never used
+RESOURCE reports SUPPORTS READ, WRITE
+RESOURCE payroll SUPPORTS READ, WRITE
+RESOURCE archive SUPPORTS READ                           # expect: W106  archive is never used
+
+ALLOW admin ACCESS reports
+ALLOW admin WRITE reports                                # expect: W102  already covered by ACCESS
+ALLOW analyst READ reports WHEN authenticated AND on_vpn
+ALLOW analyst READ reports WHEN on_vpn AND authenticated # expect: W101  same rule, reordered
+ALLOW intern READ reports WHEN supervised
+DENY intern READ reports WHEN after_hours                # expect: W103  conflicts when both hold
+DENY vendor ACCESS payroll
+ALLOW vendor READ payroll WHEN invoice_open              # expect: W104  the DENY always wins

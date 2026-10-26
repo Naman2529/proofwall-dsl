@@ -72,7 +72,10 @@ class GuiServerTests(unittest.TestCase):
         self.assertEqual(data["llm"], "fake")
         self.assertTrue(data["key_set"])
         self.assertIn("gemini-", data["model"])
-        self.assertEqual(len(data["tasks"]), 20)
+        self.assertEqual(len(data["tasks"]), 25)
+        self.assertEqual([t["id"] for t in data["tasks"][:5]], ["d01", "d02", "d03", "d04", "d05"])
+        self.assertIn("demo/01_full_language.pol", data["sources"])
+        self.assertNotIn("demo/requirements/d01.pol", data["sources"])
         self.assertIn("examples/optimizable.pol", data["sources"])
         self.assertIn("evaluation/optimization/o4_or_merge.pol", data["sources"])
         self.assertNotIn(KEY.encode(), body)
@@ -123,6 +126,12 @@ class GuiServerTests(unittest.TestCase):
         self.assertFalse(data["attempts"][0]["ok"])
         self.assertEqual(data["attempts"][0]["errors"][0]["code"], "P001")
         self.assertTrue(data["attempts"][1]["ok"])
+
+    def test_generate_a_demo_requirement(self):
+        status, data = self.post("/api/generate", {"task": "d02"})
+        self.assertEqual(status, 200)
+        self.assertTrue(data["verified"])
+        self.assertIn("senior", data["dsl"])
 
     def test_generate_free_text_with_vocabulary(self):
         status, data = self.post("/api/generate", {

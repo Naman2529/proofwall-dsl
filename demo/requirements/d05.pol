@@ -1,0 +1,7 @@
+# Reference for demo requirement d05 (hard). Never shown to the model.
+SUBJECT intern, analyst
+RESOURCE dashboards SUPPORTS READ, WRITE
+
+ALLOW intern READ dashboards WHEN supervised AND NOT remote
+ALLOW analyst READ dashboards
+ALLOW analyst WRITE dashboards WHEN NOT locked

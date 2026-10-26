@@ -226,11 +226,31 @@ def add_commands(sub) -> None:
     e.add_argument("--fresh", action="store_true", help="discard earlier raw results first")
     e.set_defaults(func=cmd_evaluate)
 
+    d = sub.add_parser("demo-check", help="show every Review 1 outcome on the demo/ examples")
+    d.add_argument("--llm", choices=LLMS, help="gemini (needs GEMINI_API_KEY) or fake")
+    d.set_defaults(func=cmd_demo_check)
+
     w = sub.add_parser("gui", help="open the demo GUI in the browser (localhost only)")
     w.add_argument("--port", type=int, default=8765)
     w.add_argument("--no-browser", action="store_true", help="do not open a browser window")
     w.add_argument("--llm", choices=LLMS, help="default model (gemini if GEMINI_API_KEY is set)")
     w.set_defaults(func=cmd_gui)
+
+
+def _demo_client(name):
+    from .demo_check import fake_demo_client
+    name = name or os.environ.get("POLICYC_LLM") or "gemini"
+    if name == "fake":
+        return fake_demo_client()
+    return default_client(name) if os.environ.get("GEMINI_API_KEY") else None
+
+
+def cmd_demo_check(args) -> int:
+    from .demo_check import format_report, run_demo_check
+    client = _demo_client(args.llm)
+    checks = run_demo_check(client)
+    print(format_report(checks, fake=getattr(client, "name", "") == "fake"), end="")
+    return 1 if any(c.status == "FAIL" for c in checks) else 0
 
 
 def cmd_gui(args) -> int:

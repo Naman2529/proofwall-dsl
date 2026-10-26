@@ -1,0 +1,11 @@
+# Unsafe: looks like a tidy-up, but it dropped `dual_control`, so one manager
+# with MFA can open the vault alone. Expected: REJECTED with that exact request.
+SUBJECT teller, manager, customer
+RESOURCE accounts SUPPORTS READ, WRITE
+RESOURCE vault    SUPPORTS EXECUTE
+
+ALLOW teller READ accounts WHEN on_shift
+ALLOW manager ACCESS accounts WHEN mfa
+ALLOW manager EXECUTE vault WHEN mfa
+ALLOW customer READ accounts WHEN owns_account
+DENY customer WRITE accounts

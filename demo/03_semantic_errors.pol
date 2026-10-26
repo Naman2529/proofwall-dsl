@@ -1,0 +1,12 @@
+# Objective 3 (errors): every line parses, but these mean nothing.
+SUBJECT teacher, student
+SUBJECT student                          # expect: S004  declared twice
+RESOURCE grades SUPPORTS READ, WRITE
+RESOURCE grades SUPPORTS READ            # expect: S005  declared twice
+RESOURCE timetable SUPPORTS READ, ACCESS # expect: S006  ACCESS cannot be listed
+
+ALLOW teacher ACCESS grades
+ALLOW techer READ grades                 # expect: S001  typo in a subject name
+ALLOW student READ grade                 # expect: S002  undeclared resource
+ALLOW student WRITE timetable            # expect: S003  timetable is read-only
+ALLOW student READ timetable

@@ -1,0 +1,13 @@
+# Objective 5 (compiler-only): the built-in optimizer removes rules that cannot
+# change any decision, and the verifier proves nothing changed. Expected: 9 -> 6 IR rules.
+SUBJECT manager, clerk, guest
+RESOURCE invoices SUPPORTS READ, WRITE
+RESOURCE ledger   SUPPORTS READ
+
+ALLOW manager ACCESS invoices
+ALLOW manager WRITE invoices WHEN mfa        # covered by the ACCESS rule above
+ALLOW clerk READ invoices WHEN on_shift
+ALLOW clerk READ invoices WHEN on_shift      # exact duplicate
+DENY guest ACCESS invoices
+ALLOW guest READ invoices                    # the DENY above always wins
+ALLOW clerk READ ledger

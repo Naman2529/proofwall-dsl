@@ -1,0 +1,6 @@
+# Reference for demo requirement d01 (easy). Never shown to the model.
+SUBJECT librarian, member
+RESOURCE catalogue SUPPORTS READ, WRITE
+
+ALLOW librarian ACCESS catalogue
+ALLOW member READ catalogue

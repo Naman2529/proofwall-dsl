@@ -1,0 +1,8 @@
+# Reference for demo requirement d04 (hard). Never shown to the model.
+SUBJECT doctor, nurse
+RESOURCE patient_records SUPPORTS READ, WRITE
+
+ALLOW doctor ACCESS patient_records WHEN on_shift
+ALLOW nurse READ patient_records WHEN on_shift
+DENY doctor ACCESS patient_records WHEN unmanaged_device
+DENY nurse ACCESS patient_records WHEN unmanaged_device

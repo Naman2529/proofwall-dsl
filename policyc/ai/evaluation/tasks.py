@@ -58,18 +58,21 @@ def load_optimization_policies(root: str = EVAL_ROOT) -> List[Tuple[str, str]]:
     return [(os.path.splitext(os.path.basename(p))[0], p) for p in paths]
 
 
+def parse_expectations(path: str) -> List[Expectation]:
+    """The `# expect: CODE[, CODE]` markers of one .pol file."""
+    expectations = []
+    with open(path, encoding="utf-8") as f:
+        for lineno, line in enumerate(f, 1):
+            m = _EXPECT.search(line)
+            if not m:
+                continue
+            miss = _KNOWN_MISS.search(line)
+            for code in re.split(r"\s*,\s*", m.group(1)):
+                reason = miss.group(2).strip() if miss and miss.group(1) == code else ""
+                expectations.append(Expectation(path, lineno, code, reason))
+    return expectations
+
+
 def load_semantic_cases(root: str = EVAL_ROOT) -> List[Tuple[str, List[Expectation]]]:
-    cases = []
-    for path in sorted(glob.glob(os.path.join(root, "semantic", "*.pol"))):
-        expectations = []
-        with open(path, encoding="utf-8") as f:
-            for lineno, line in enumerate(f, 1):
-                m = _EXPECT.search(line)
-                if not m:
-                    continue
-                miss = _KNOWN_MISS.search(line)
-                for code in re.split(r"\s*,\s*", m.group(1)):
-                    reason = miss.group(2).strip() if miss and miss.group(1) == code else ""
-                    expectations.append(Expectation(path, lineno, code, reason))
-        cases.append((path, expectations))
-    return cases
+    return [(path, parse_expectations(path))
+            for path in sorted(glob.glob(os.path.join(root, "semantic", "*.pol")))]

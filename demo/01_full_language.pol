@@ -1,0 +1,16 @@
+# Objective 1: a hospital records policy that uses every part of the language:
+# declarations, SUPPORTS, ALLOW and DENY, all four actions (ACCESS = every
+# supported action), and conditions with AND, OR, NOT and parentheses.
+# Expected: compiles with 0 errors and 0 warnings.
+SUBJECT doctor, nurse, receptionist, auditor, contractor
+
+RESOURCE patient_records SUPPORTS READ, WRITE
+RESOURCE billing         SUPPORTS READ, WRITE
+RESOURCE lab_system      SUPPORTS READ, EXECUTE
+
+ALLOW doctor ACCESS patient_records WHEN on_shift AND (mfa OR hospital_network)
+ALLOW nurse READ patient_records WHEN on_shift
+ALLOW receptionist READ billing
+ALLOW auditor READ billing WHEN NOT audit_freeze
+ALLOW doctor EXECUTE lab_system WHEN on_shift
+DENY contractor ACCESS patient_records

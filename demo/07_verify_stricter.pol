@@ -1,0 +1,11 @@
+# Stricter: tellers now also need the branch network. Expected: REJECTED in
+# "equivalent" mode (a decision changed), PROVEN in "non-weakening" mode (it never allows more).
+SUBJECT teller, manager, customer
+RESOURCE accounts SUPPORTS READ, WRITE
+RESOURCE vault    SUPPORTS EXECUTE
+
+ALLOW teller READ accounts WHEN on_shift AND branch_network
+ALLOW manager ACCESS accounts WHEN mfa
+ALLOW manager EXECUTE vault WHEN mfa AND dual_control
+ALLOW customer READ accounts WHEN owns_account
+DENY customer WRITE accounts

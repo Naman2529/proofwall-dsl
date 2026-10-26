@@ -1,0 +1,113 @@
+[
+  {
+    "id": "d01",
+    "difficulty": "easy",
+    "english": "Librarians can read and update the catalogue. Members can only read it.",
+    "shows": "plain rules and ACCESS",
+    "vocabulary": {
+      "subjects": [
+        "librarian",
+        "member"
+      ],
+      "resources": {
+        "catalogue": [
+          "READ",
+          "WRITE"
+        ]
+      },
+      "attributes": []
+    },
+    "reference": "requirements/d01.pol"
+  },
+  {
+    "id": "d02",
+    "difficulty": "medium",
+    "english": "Support agents can read tickets while they are on shift. They can also close tickets (write), but only when they are on shift and are senior agents.",
+    "shows": "conditions with AND",
+    "vocabulary": {
+      "subjects": [
+        "support_agent"
+      ],
+      "resources": {
+        "tickets": [
+          "READ",
+          "WRITE"
+        ]
+      },
+      "attributes": [
+        "on_shift",
+        "senior"
+      ]
+    },
+    "reference": "requirements/d02.pol"
+  },
+  {
+    "id": "d03",
+    "difficulty": "medium",
+    "english": "Developers can deploy to production when the change is approved or during an emergency, but never during a code freeze.",
+    "shows": "OR, plus a DENY exception that wins",
+    "vocabulary": {
+      "subjects": [
+        "developer"
+      ],
+      "resources": {
+        "production": [
+          "EXECUTE"
+        ]
+      },
+      "attributes": [
+        "change_approved",
+        "emergency",
+        "code_freeze"
+      ]
+    },
+    "reference": "requirements/d03.pol"
+  },
+  {
+    "id": "d04",
+    "difficulty": "hard",
+    "english": "Doctors have full access to patient records while on shift, and nurses can read them while on shift. Nobody may access patient records from an unmanaged device.",
+    "shows": "\"nobody\" must become a DENY for every subject",
+    "vocabulary": {
+      "subjects": [
+        "doctor",
+        "nurse"
+      ],
+      "resources": {
+        "patient_records": [
+          "READ",
+          "WRITE"
+        ]
+      },
+      "attributes": [
+        "on_shift",
+        "unmanaged_device"
+      ]
+    },
+    "reference": "requirements/d04.pol"
+  },
+  {
+    "id": "d05",
+    "difficulty": "hard",
+    "english": "Interns can view dashboards, but only when supervised and not working remotely. Analysts can view and edit dashboards, except that a locked dashboard can only be viewed.",
+    "shows": "NOT, and an exception that removes only one action",
+    "vocabulary": {
+      "subjects": [
+        "intern",
+        "analyst"
+      ],
+      "resources": {
+        "dashboards": [
+          "READ",
+          "WRITE"
+        ]
+      },
+      "attributes": [
+        "supervised",
+        "remote",
+        "locked"
+      ]
+    },
+    "reference": "requirements/d05.pol"
+  }
+]

@@ -1,0 +1,6 @@
+# Reference for demo requirement d03 (medium). Never shown to the model.
+SUBJECT developer
+RESOURCE production SUPPORTS EXECUTE
+
+ALLOW developer EXECUTE production WHEN change_approved OR emergency
+DENY developer EXECUTE production WHEN code_freeze

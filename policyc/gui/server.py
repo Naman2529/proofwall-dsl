@@ -29,6 +29,7 @@ from typing import Optional
 
 from .. import ast_nodes as A
 from ..ai.evaluation.run import render_source
+from ..ai.demo_check import load_requirements
 from ..ai.evaluation.tasks import EVAL_ROOT, load_generation_tasks
 from ..ai.generator import generate_policy
 from ..ai.llm_client import DEFAULT_MODEL, FakeClient, GeminiClient, LLMError
@@ -39,7 +40,8 @@ from ..verifier import verify
 
 STATIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 REPO = os.path.dirname(EVAL_ROOT)
-SOURCE_DIRS = ("examples", "evaluation/optimization", "evaluation/semantic", "evaluation/generation")
+SOURCE_DIRS = ("demo", "examples", "evaluation/optimization", "evaluation/semantic",
+               "evaluation/generation")
 PHASES = ("Lexer", "Parser", "Semantic", "IR", "Optimizer", "Verifier", "Codegen")
 
 
@@ -115,7 +117,8 @@ class App:
     def __init__(self, llm: Optional[str] = None, results_dir: Optional[str] = None):
         self.default_llm = llm or ("gemini" if os.environ.get("GEMINI_API_KEY") else "fake")
         self.results_dir = results_dir or os.path.join(EVAL_ROOT, "results")
-        self.tasks = {t.id: t for t in load_generation_tasks()}
+        # Demo requirements (d01..) first, then the 20 benchmark tasks (g01..).
+        self.tasks = {t.id: t for t in load_requirements() + load_generation_tasks()}
 
     def client(self, mode: str, fake_reply):
         if mode == "gemini":

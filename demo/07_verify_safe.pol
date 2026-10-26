@@ -1,0 +1,10 @@
+# Safe: reordered rules and conditions. Expected: PROVEN (same decisions).
+SUBJECT teller, manager, customer
+RESOURCE accounts SUPPORTS READ, WRITE
+RESOURCE vault    SUPPORTS EXECUTE
+
+DENY customer WRITE accounts
+ALLOW customer READ accounts WHEN owns_account
+ALLOW manager EXECUTE vault WHEN dual_control AND mfa
+ALLOW manager ACCESS accounts WHEN mfa
+ALLOW teller READ accounts WHEN on_shift

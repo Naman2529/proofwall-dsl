@@ -1,0 +1,6 @@
+# Reference for demo requirement d02 (medium). Never shown to the model.
+SUBJECT support_agent
+RESOURCE tickets SUPPORTS READ, WRITE
+
+ALLOW support_agent READ tickets WHEN on_shift
+ALLOW support_agent WRITE tickets WHEN on_shift AND senior

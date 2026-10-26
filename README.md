@@ -19,10 +19,11 @@ python -m policyc verify examples/optimizable.pol examples/candidate_good.pol   
 python -m policyc verify examples/optimizable.pol examples/candidate_bad.pol    # rejected
 python -m policyc.verification verify examples/optimizable.pol examples/candidate_bad.pol   # Z3 verifier, see docs/VERIFICATION.md
 python -m policyc gui                                           # the demo GUI in your browser (localhost only)
+python -m policyc demo-check                                     # checks every Review 1 outcome on demo/ (add --llm fake offline)
 python -m policyc generate --task g16 --llm fake                # English -> DSL (drop --llm fake with a key)
 python -m policyc optimize evaluation/optimization/o4_or_merge.pol --llm fake
 python -m policyc evaluate --llm fake                            # every Review 1 metric, see docs/EVALUATION.md
-python -m unittest discover -s tests -v                          # 222 tests (190 without z3)
+python -m unittest discover -s tests -v                          # 234 tests (202 without z3)
 ```
 
 Other flags: `--emit tokens|ast|ir|json|all`, `-o out.json` to save the target policy, `--json-diagnostics` to print errors as JSON.
@@ -223,6 +224,8 @@ Every error and warning is an object with a code, phase, message, line, column, 
 
 ---
 
+**The full demo script, setup, troubleshooting and an explanation of every part are in [docs/DEMO_GUIDE.md](docs/DEMO_GUIDE.md).**
+
 ## 5. Suggested demo order (about 6 minutes, in the GUI)
 
 Before the demo: `pip install -r requirements.txt matplotlib`, set `GEMINI_API_KEY`, run `python -m policyc evaluate` once (for the Results tab), then `python -m policyc gui`. The header toggle switches between Gemini and the offline Fake model.
@@ -235,7 +238,7 @@ Before the demo: `pip install -r requirements.txt matplotlib`, set `GEMINI_API_K
 6. **Optimize** `o4_or_merge.pol` with Gemini: compiler-only 5 -> 5 rules, LLM 5 -> 3, proven equivalent, with the diff.
 7. **Verify**, preset "Dropped a condition": REJECTED, with the exact request that would have been wrongly allowed. "This is what happens to an unsafe AI suggestion."
 8. **Results**: the Review 1 numbers and charts from the real run.
-9. Run the tests: 222 passing.
+9. Run `python -m policyc demo-check` and the tests (234 passing).
 
 The same steps work from the command line (`compile`, `verify`, `generate`, `optimize`, `evaluate`).
 
@@ -301,9 +304,10 @@ policyc/
     evaluation/        benchmark loaders, resumable runner, reports, charts
 examples/              the .pol files used in the demo
 evaluation/            benchmark data (generation, optimization, semantic); results/ is git-ignored
-tests/                 222 unittest tests (test_verification.py is skipped without z3-solver)
+tests/                 234 unittest tests (test_verification.py is skipped without z3-solver)
 benchmarks/            Z3 vs enumeration timing
-docs/                  VERIFICATION.md, EVALUATION.md, superpowers/ (design spec and plan)
+demo/                  demo examples, one per Review 1 outcome (see docs/DEMO_GUIDE.md)
+docs/                  DEMO_GUIDE.md (start here), VERIFICATION.md, EVALUATION.md, superpowers/
 ```
 
 Ground rules for anyone adding to this:

@@ -1,0 +1,11 @@
+# Objective 2: every kind of syntax error, all reported in ONE run thanks to
+# panic-mode recovery, each with a line number and the tokens that were expected.
+SUBJECT admin, guest
+RESOURCE database SUPPORTS READ, WRITE
+
+ALLOW admin DELETE database              # expect: P001  DELETE is not an action
+DENY guest WRITE                         # expect: P001  the resource is missing
+ALLOW admin READ database WHEN (mfa      # expect: P001  the ')' is missing
+ALLOW guest READ database;               # expect: L001  ';' is not part of the language
+allow guest READ database                # expect: P001  keywords are uppercase
+ALLOW admin READ database WHEN           # expect: P001  the condition is empty

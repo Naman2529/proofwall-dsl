@@ -1,0 +1,15 @@
+# Objective 5 (AI): the compiler-only optimizer cannot shrink this (7 -> 7).
+# A smarter rewrite can: OR-merge two rules, `a AND b` + `a AND NOT b` -> `a`,
+# and READ + WRITE -> ACCESS. Expected with the LLM: 7 -> 5 IR rules, 7 -> 4 statements.
+SUBJECT engineer, contractor, analyst
+RESOURCE deploy_api SUPPORTS EXECUTE
+RESOURCE config     SUPPORTS READ, WRITE
+RESOURCE metrics    SUPPORTS READ
+
+ALLOW engineer EXECUTE deploy_api WHEN on_call
+ALLOW engineer EXECUTE deploy_api WHEN change_approved
+ALLOW engineer READ config
+ALLOW engineer WRITE config
+ALLOW contractor READ metrics WHEN on_vpn AND badge_valid
+ALLOW contractor READ metrics WHEN on_vpn AND NOT badge_valid
+ALLOW analyst READ metrics
